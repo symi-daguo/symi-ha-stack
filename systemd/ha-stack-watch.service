@@ -1,0 +1,15 @@
+[Unit]
+Description=Home Assistant stack health watch (auto-fallback to Docker)
+Documentation=https://github.com/symi-daguo/symi-ha-stack
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /opt/ha-stack/scripts/watch.sh
+Restart=always
+RestartSec=30
+# Give the script time to write its final log line before being killed.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

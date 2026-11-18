@@ -1,0 +1,16 @@
+[Unit]
+Description=Home Assistant + Mosquitto + Node-RED + Matter Hub (Docker)
+Documentation=https://github.com/symi-daguo/symi-ha-stack
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ha-stack
+ExecStart=/usr/bin/docker compose up -d --no-build
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

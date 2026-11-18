@@ -1,0 +1,38 @@
+# ── secrets ─────────────────────────────────────────────────────────────────
+.env
+*.env
+!examples/.env.example
+mosquitto/config/.ha_mqtt_password
+mosquitto/config/passwd
+*.token
+ha_token
+matter-pairing.txt
+
+# ── runtime data (contains device data and credentials) ─────────────────────
+ha-config/
+matter-hub-data/
+nodered-data/
+mosquitto/data/
+mosquitto/log/
+backup/
+*.tar.gz
+*.log
+watch.log
+engine.log
+
+# ── local overrides ─────────────────────────────────────────────────────────
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ── editors / OS ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/

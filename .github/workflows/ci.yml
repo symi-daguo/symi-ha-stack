@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: shellcheck
+        run: |
+          shellcheck --severity=warning \
+            scripts/*.sh \
+            install/*.sh
+
+  compose:
+    name: Validate compose template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        env:
+          STACK_DIR: /tmp/ha-stack
+          MDNS_INTERFACE: eth0
+          HAMH_HA_TOKEN: dummy-token-for-validation
+        run: |
+          docker compose -f examples/docker-compose.yml config --quiet
+          echo "compose file is valid"
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for committed secrets
+        run: |
+          set -e
+          echo "--- checking tracked files for credential patterns ---"
+          # A real token is a long base64-ish blob assigned to a credential name.
+          if git grep -nIE '(HAMH_HA_TOKEN|HASS_TOKEN|MQTT_PASSWORD|ACCESS_TOKEN)=[A-Za-z0-9+/=_-]{20,}' \
+               -- . ':!*.example' ':!docs/*' ':!README*' ':!examples/.env.example'; then
+            echo "::error::possible secret committed"
+            exit 1
+          fi
+          echo "no secrets found in tracked files"
+
+      - name: Verify secret-bearing paths are ignored
+        run: |
+          set -e
+          for p in .env ha-config matter-hub-data nodered-data \
+                   mosquitto/config/.ha_mqtt_password mosquitto/config/passwd; do
+            if git ls-files --error-unmatch "$p" >/dev/null 2>&1; then
+              echo "::error::$p is tracked but should be gitignored"
+              exit 1
+            fi
+          done
+          echo "secret-bearing paths are correctly ignored"
+
+  docs:
+    name: Check documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Relative links resolve
+        run: |
+          set -e
+          fail=0
+          for f in README.md README_EN.md docs/*.md; do
+            d=$(dirname "$f")
+            # extract markdown link targets that are relative paths
+            grep -oE '\]\([^)#][^)]*\)' "$f" 2>/dev/null \
+              | sed 's/^](//; s/)$//' \
+              | grep -vE '^(https?:|mailto:)' \
+              | while read -r link; do
+                  target="$d/$link"
+                  if [ ! -e "$target" ]; then
+                    echo "::error::broken link in $f -> $link"
+                    exit 1
+                  fi
+                done || fail=1
+          done
+          [ "$fail" = "0" ] || exit 1
+          echo "all relative links resolve"

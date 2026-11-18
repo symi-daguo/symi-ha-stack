@@ -1,0 +1,16 @@
+[Unit]
+Description=Home Assistant stack on Kiri (container engine)
+Documentation=https://github.com/symi-daguo/symi-ha-stack
+After=kiri.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash /opt/ha-stack/scripts/engine.sh kiri
+# If the stack fails to come up, fall back to Docker rather than staying down.
+ExecStopPost=-/bin/bash /opt/ha-stack/scripts/engine.sh docker
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Disable leftover mosquitto AppArmor profile
+# MUST run after apparmor.service: apparmor.service reloads every profile in
+# /etc/apparmor.d/ at boot, which re-attaches the profile by path hint.
+After=apparmor.service
+Requires=apparmor.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash /opt/ha-stack/scripts/disable-mosquitto-apparmor.sh
+
+[Install]
+WantedBy=multi-user.target
