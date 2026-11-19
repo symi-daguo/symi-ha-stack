@@ -29,8 +29,16 @@
 set -u
 
 SELF=dev.symi.ha-stack.kiri-forward
-WAIT_CHAIN="${KIRI_WAIT_CHAIN:-90}"
-WAIT_ROUTE="${KIRI_WAIT_ROUTE:-90}"
+# These waits must stay well under systemd's TimeoutStartSec (default 90s),
+# otherwise systemd kills this ExecStartPost and takes the engine down with
+# it ("start-post operation timed out. Terminating.").
+#
+# The chain wait is deliberately short: when the stack runs on Kiri, the
+# Docker daemon is NOT started at boot, so the DOCKER-USER chain usually
+# never appears — and we create it ourselves anyway. Waiting a long time for
+# it is pointless and, with the systemd default timeout, fatal.
+WAIT_CHAIN="${KIRI_WAIT_CHAIN:-10}"
+WAIT_ROUTE="${KIRI_WAIT_ROUTE:-20}"
 
 logger_tag() { logger -t "$SELF" "$*" 2>/dev/null || true; }
 

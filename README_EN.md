@@ -71,6 +71,7 @@ The most valuable part of this project. Full details in
 | 2 | Containers have no DNS / no egress | DOCKER-USER chain missing and no default route at boot | Wait 90 s, create the chain ourselves |
 | 3 | mosquitto exits 3 forever | A leftover host AppArmor path profile lands in the container | Rename + `apparmor_parser -R` + boot unit |
 | 4 | Both engines fight over ports | dockerd autostarts and starts all containers | Disable dockerd autostart, stop it on switch-back |
+| 5 | Engine killed at boot | script waits 180s, over systemd's 90s default | shorter waits + explicit `TimeoutStartSec=180` |
 
 #3 is the subtlest: Docker force-applies `docker-default`, which overrides path
 profiles, so **the bug is invisible on Docker** and only shows up on runtimes
@@ -164,13 +165,15 @@ STACK_DIR=/opt/ha-stack ./scripts/engine.sh kiri
 symi-ha-stack/
 ├── examples/
 │   ├── docker-compose.yml     # four-service stack (paths/interface via .env)
-│   └── .env.example           # configuration template
+│   ├── .env.example           # configuration template
+│   └── kiri.service           # reference unit (TimeoutStartSec and other fixes)
 ├── scripts/
 │   ├── engine.sh              # engine switching (status / docker / kiri)
 │   ├── watch.sh               # health polling + automatic fallback
 │   ├── kiri-forward.sh        # Kiri bridge egress rules (boot-race handling)
 │   ├── disable-mosquitto-apparmor.sh  # unload leftover AppArmor profile
 │   ├── setup-mqtt.sh          # generate MQTT credentials
+│   ├── fix-permissions.sh      # fix bind-mount dir ownership (container uid)
 │   └── sync-images.sh         # Docker → Kiri image sync
 ├── systemd/
 │   ├── ha-stack.service               # Docker autostart

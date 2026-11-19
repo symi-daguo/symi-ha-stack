@@ -1,0 +1,71 @@
+# Reference unit for the Kiri container engine, with the fixes this project
+# relies on. Install with:
+#
+#   sudo cp examples/kiri.service /etc/systemd/system/kiri.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kiri.service
+#
+# ── What differs from the upstream unit ──────────────────────────────────────
+#
+# 1. TimeoutStartSec=180
+#    ExecStartPre waits for a default route and ExecStartPost installs the
+#    FORWARD rules. Both must fit inside the start timeout; the systemd
+#    default of 90s is too tight and makes systemd kill the engine with
+#    "start-post operation timed out. Terminating."
+#
+# 2. ExecStartPre waits for the default route
+#    Kiri reads /proc/net/route at startup to find the default uplink and
+#    aborts with "kiri-init: no uplink: no default route" when there is
+#    none. Ubuntu's network-online.target does NOT actually guarantee the
+#    default route is up, so wait for it explicitly.
+#
+# 3. ExecStartPost= and ExecStopPost= carry the "-" prefix
+#    Without it, a failing command fails the whole unit and the engine is
+#    killed in a restart loop.
+#
+# 4. The FORWARD rules live in a separate script that always exits 0
+#    See scripts/kiri-forward.sh.
+#
+# Note on the DOCKER-USER chain: the stack runs on Kiri, so the Docker
+# daemon is usually not started at boot and the chain often does not exist
+# when this unit runs. The script waits briefly and then creates the chain
+# itself — do not make that wait long, it would blow the start timeout.
+
+[Unit]
+Description=Kiri container engine
+Documentation=https://runkiri.com
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/kiri daemon
+Environment=KIRI_SOCKET=/run/kiri/docker.sock
+Environment=KIRI_SOCKET_GROUP=kiri
+Environment=HOME=/var/lib/kiri-daemon
+
+# The daemon creates the cgroups its containers run in.
+Delegate=yes
+KillMode=mixed
+Restart=on-failure
+RestartSec=10
+
+# Explicit: ExecStartPre + ExecStartPost must fit inside this budget.
+TimeoutStartSec=180
+
+# Wait for the default route before starting the engine.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 90); do ip route show default 2>/dev/null | grep -q "^default" && exit 0; sleep 1; done; exit 0'
+
+# The "-" prefix means "ignore failure": a failing command here must never
+# take the engine down.
+ExecStartPost=-/bin/sh -c '[ "$$(readlink /run/docker.sock)" = /run/kiri/docker.sock ] || [ -e /run/docker.sock ] || [ -L /run/docker.sock ] || ln -s /run/kiri/docker.sock /run/docker.sock'
+ExecStopPost=-/bin/sh -c '[ "$$(readlink /run/docker.sock)" != /run/kiri/docker.sock ] || rm -f /run/docker.sock'
+
+RuntimeDirectory=kiri
+# 0755: members of kiri reach the socket (itself 0660 root:kiri) through it.
+RuntimeDirectoryMode=0755
+StateDirectory=kiri-daemon
+StateDirectoryMode=0700
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

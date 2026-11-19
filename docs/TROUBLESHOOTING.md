@@ -278,6 +278,72 @@ host 网络的容器直接占宿主端口。`compose down` 返回后 docker-prox
 
 ---
 
+## 坑 5：脚本等待时间超过 systemd 启动超时 → 引擎被杀（修复之间的相互影响）
+
+### 现象
+
+```
+Process: 11922 ExecStartPost=/bin/bash .../kiri-forward.sh apply (code=killed, signal=TERM)
+kiri.service: start-post operation timed out. Terminating.
+INFO  engine shutting down signal=15
+```
+
+引擎在开机时反复被杀。而且这个 bug **只在"某两个修复同时生效"时才出现**，
+单独看每个修复都是对的。
+
+### 根因：两个正确修复互相打架
+
+修复 #2 让脚本开机时等 `DOCKER-USER` 链出现（最多 90s）。
+修复 #4 禁用了 dockerd 开机自启 —— 于是**开机时根本不会有 Docker 启动，
+链永远不会出现**，脚本必然死等满 90s。
+
+而 systemd 的 `TimeoutStartSec` 默认是 **90s**。`ExecStartPre`（等路由，最多 90s）
+加上 `ExecStartPost`（等链，最多 90s）最坏需要 180s，远超预算。
+
+systemd 的行为是：**启动超时 → 杀掉 ExecStartPost → 认为 unit 失败 →
+终止主进程**。于是引擎被自己装的规则脚本害死。
+
+```
+ExecStartPre  等路由        ≤ 90s
+ExecStartPost 等链 + 插规则  ≤ 90s   ← 加起来 180s > TimeoutStartSec 90s
+                                        → systemd 杀 ExecStartPost → 引擎死
+```
+
+### 修复
+
+1. **缩短等待时间**。等链本来就没意义 —— 等不到就自己建链，等再久也一样：
+
+   ```bash
+   WAIT_CHAIN="${KIRI_WAIT_CHAIN:-10}"    # 原来 90
+   WAIT_ROUTE="${KIRI_WAIT_ROUTE:-20}"    # 原来 90
+   ```
+
+2. **显式设置 `TimeoutStartSec=180`**（见 `examples/kiri.service`），
+   留出余量，别依赖默认值。
+
+3. **给 systemd unit 加 `TimeoutStartSec`** 是个通用原则：任何带等待的
+   `ExecStartPre`/`ExecStartPost` 都要和它对齐。
+
+### 验证
+
+```bash
+# 模拟开机：删掉链，测冷启动耗时
+iptables -F DOCKER-USER; iptables -X DOCKER-USER
+time systemctl restart kiri.service
+systemctl show kiri.service -p NRestarts -p Result
+# 期望：耗时 < 30s，NRestarts=0，Result=success
+```
+
+实测修复后：**10 秒完成**，规则正确安装。
+
+### 教训
+
+**修 A 让 B 失效时，故障会出现在两者的交集上，而不是任何单独一个。**
+所以每个修复都必须配一个"组合场景"的验证 —— 这里就是：
+「链不存在 + 引擎启动」。
+
+---
+
 ## 完整验证清单
 
 ```bash
@@ -354,6 +420,23 @@ Each one below has root-cause evidence, not guesswork.
    ports; whoever started first won and the other crash-looped. This is the
    *cause* of #1–#3. Fix: `systemctl disable snap.docker.dockerd.service` and
    start it on demand in `engine.sh docker`.
+
+5. **A script that waits longer than the systemd start timeout.** The
+   `ExecStartPost` that installs the FORWARD rules waited up to 90s for the
+   `DOCKER-USER` chain, and `ExecStartPre` waited up to 90s for the default
+   route — 180s in total, against systemd's 90s `TimeoutStartSec` default.
+   systemd killed the `ExecStartPost` and took the engine with it.
+
+   This one only appears when **two correct fixes interact**: waiting for
+   the chain is right, and not starting the Docker daemon at boot is also
+   right — but together they mean the chain never appears, so the wait
+   always burns out the timeout. Fix: shorten the waits (the chain wait is
+   pointless — we create the chain ourselves when it is missing) and set
+   `TimeoutStartSec=180` explicitly.
+
+   **Lesson: when fix A invalidates fix B, the failure shows up at their
+   intersection, not in either one alone.** Every fix needs a combined
+   scenario test — here: "chain absent + engine start".
 
 Two production defects fixed along the way: the health monitor's
 "engine not present" branch could wait forever when *both* engines were down

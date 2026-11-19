@@ -20,7 +20,7 @@ name: ha-stack
 services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:2026.11.1
-    container_name: homeassistant
+    container_name: ${CONTAINER_PREFIX}homeassistant
     hostname: home-assistant
     restart: unless-stopped
 
@@ -63,7 +63,7 @@ services:
 
   mosquitto:
     image: eclipse-mosquitto:2.0
-    container_name: mosquitto
+    container_name: ${CONTAINER_PREFIX}mosquitto
     hostname: mosquitto
     restart: unless-stopped
 
@@ -100,7 +100,7 @@ services:
 
   nodered:
     image: nodered/node-red:latest
-    container_name: nodered
+    container_name: ${CONTAINER_PREFIX}nodered
     hostname: nodered
     restart: unless-stopped
 
@@ -134,7 +134,7 @@ services:
     # 上游官方镜像（https://github.com/riddix/home-assistant-matter-hub）
     # 稳定版 1.7.x 已支持 --mdns-network-interface / --mdns-strip-global-ipv6。
     image: ghcr.io/riddix/home-assistant-matter-hub:${MATTER_HUB_VERSION:-1.7.18}
-    container_name: matter-hub
+    container_name: ${CONTAINER_PREFIX}matter-hub
     hostname: matter-hub
     restart: unless-stopped
 
@@ -151,18 +151,35 @@ services:
       HAMH_HOME_ASSISTANT_ACCESS_TOKEN: ${HAMH_HA_TOKEN}
       HAMH_LOG_LEVEL: ${MATTER_LOG_LEVEL:-info}
       HAMH_HTTP_PORT: 8482
+      # Used by the command below.
+      MDNS_INTERFACE: ${MDNS_INTERFACE:?set MDNS_INTERFACE in .env}
+      # Extra CLI flags, e.g. "--mdns-strip-global-ipv6"
+      MATTER_HUB_EXTRA_ARGS: ${MATTER_HUB_EXTRA_ARGS:-}
       # 镜像原 CMD 是一段按可用内存算堆大小的 shell 脚本；
       # 这里 command 覆盖了它，所以堆大小要显式给。
       # 算法：cgroup 512m → 512/2 = 256，下限 256（与原脚本一致）。
       NODE_OPTIONS: --max-old-space-size=256
 
+    # Shell form on purpose: it lets MATTER_HUB_EXTRA_ARGS be empty without
+    # passing an empty argument to the CLI (which the tool rejects).
+    #
+    # --mdns-network-interface pins mDNS to the LAN interface; without it
+    # Matter also advertises docker0 / br-* / kiri* addresses, and a
+    # controller may pick one it cannot reach.
+    #
+    # --mdns-strip-global-ipv6 drops the global IPv6 (GUA) from the
+    # advertisement. It exists in upstream master / 2.0.45+ but NOT in the
+    # published 1.x / 2.0.7 images — passing it there makes the container
+    # exit with "Unknown arguments". Enable it only when devices show
+    # "No Response" and your interface carries a GUA address
+    # (see docs/TROUBLESHOOTING.md).
     command:
-      - home-assistant-matter-hub
-      - start
-      # 限定 mDNS 到局域网网卡（否则内部网卡地址也会进广播）
-      - --mdns-network-interface=${MDNS_INTERFACE:?set MDNS_INTERFACE in .env}
-      # 丢掉全局 IPv6 (GUA)，让控制器用本地可达地址
-      - --mdns-strip-global-ipv6
+      - /bin/sh
+      - -c
+      - |
+        exec home-assistant-matter-hub start \
+          --mdns-network-interface="$${MDNS_INTERFACE}" \
+          $${MATTER_HUB_EXTRA_ARGS}
 
     volumes:
       - ${STACK_DIR}/matter-hub-data:/data

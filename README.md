@@ -66,6 +66,7 @@ Mosquitto ~19 MB）。省的是引擎和镜像。
 | 2 | 容器无 DNS、无出网 | 开机时 DOCKER-USER 链不存在 + 默认路由未就绪 | 脚本等 90s，自建链兜底 |
 | 3 | mosquitto 无限 exit 3 | 宿主残留 AppArmor 路径 profile 挂进容器 | 改名 + `apparmor_parser -R` + 开机 unit |
 | 4 | 两套引擎互抢端口 | dockerd 自启把容器全拉起来 | 禁用 dockerd 自启，切回时停掉 |
+| 5 | 引擎开机被杀 | 脚本等待 180s 超过 systemd 默认 90s 超时 | 缩短等待 + 显式 `TimeoutStartSec=180` |
 
 第 3 个最隐蔽：Docker 强制套 `docker-default` 覆盖了路径 profile，所以**在
 Docker 上永远看不到这个 bug**，只有 Kiri 这类不套默认 profile 的运行时才会暴露。
@@ -155,13 +156,15 @@ STACK_DIR=/opt/ha-stack ./scripts/engine.sh kiri
 symi-ha-stack/
 ├── examples/
 │   ├── docker-compose.yml     # 四服务栈（路径/网卡全部走 .env）
-│   └── .env.example           # 配置模板
+│   ├── .env.example           # 配置模板
+│   └── kiri.service           # 参考 unit（含 TimeoutStartSec 等修复）
 ├── scripts/
 │   ├── engine.sh              # 引擎切换（status / docker / kiri）
 │   ├── watch.sh               # 健康巡检 + 自动回落
 │   ├── kiri-forward.sh        # Kiri bridge 出网规则（开机竞态处理）
 │   ├── disable-mosquitto-apparmor.sh  # 卸载残留 AppArmor profile
 │   ├── setup-mqtt.sh          # 生成 MQTT 凭据
+│   ├── fix-permissions.sh      # 修正 bind mount 目录属主（容器内 uid）
 │   └── sync-images.sh         # Docker → Kiri 镜像同步
 ├── systemd/
 │   ├── ha-stack.service               # Docker 版自启
