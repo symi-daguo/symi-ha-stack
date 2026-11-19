@@ -21,7 +21,7 @@ better belong here.
 1. **Boot-time and runtime failure reports**, especially from other distros
    (Debian, Fedora, Raspberry Pi OS) or other container runtimes
    (Podman, containerd).
-2. **Fixes to the four documented pitfalls** in
+2. **Fixes to the five documented pitfalls** in
    [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for environments we
    have not tested.
 3. **Real numbers** — memory, disk, recovery time — from your hardware. The
@@ -35,7 +35,7 @@ git clone https://github.com/symi-daguo/symi-ha-stack.git
 cd symi-ha-stack
 
 # shellcheck the scripts
-shellcheck scripts/*.sh install/*.sh
+shellcheck --severity=warning scripts/*.sh install/*.sh
 
 # validate the compose template
 STACK_DIR=/tmp/ha-stack MDNS_INTERFACE=lo \
@@ -105,7 +105,7 @@ Example files (`examples/.env.example`) must use placeholders
 | `scripts/kiri-forward.sh` | 维护 Kiri 的出网规则 |
 | `scripts/disable-mosquitto-apparmor.sh` | 卸载残留的 AppArmor profile |
 | `scripts/sanitize-scan.sh` | 脱敏扫描（CI 与本地都用它） |
-| `scripts/selftest-fixtures.sh` | 自检用的泄漏样本（**不是**配置） |
+| `tests/fixtures/plant-leaks.sh` | 自检用的泄漏样本（**不是**配置） |
 
 ### 脱敏扫描
 
@@ -121,7 +121,7 @@ Example files (`examples/.env.example`) must use placeholders
 因为它会报"干净"：
 
 ```bash
-./scripts/selftest-fixtures.sh /tmp/leaks
+./tests/fixtures/plant-leaks.sh /tmp/leaks
 ./scripts/sanitize-scan.sh --path /tmp/leaks   # 必须退出 1
 ```
 
@@ -139,7 +139,7 @@ Example files (`examples/.env.example`) must use placeholders
 | `scripts/kiri-forward.sh` | Maintain Kiri's egress rules |
 | `scripts/disable-mosquitto-apparmor.sh` | Unload the leftover AppArmor profile |
 | `scripts/sanitize-scan.sh` | The sanitisation scan (CI and local runs use this same file) |
-| `scripts/selftest-fixtures.sh` | The planted leaks used by the self-test (**not** configuration) |
+| `tests/fixtures/plant-leaks.sh` | The planted leaks used by the self-test (**not** configuration) |
 
 ### The sanitisation scan
 
@@ -156,7 +156,7 @@ stopped matching is worse than no scanner at all, because it reports
 "clean" while leaks pass:
 
 ```bash
-./scripts/selftest-fixtures.sh /tmp/leaks
+./tests/fixtures/plant-leaks.sh /tmp/leaks
 ./scripts/sanitize-scan.sh --path /tmp/leaks   # must exit 1
 ```
 

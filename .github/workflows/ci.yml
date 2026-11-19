@@ -44,10 +44,19 @@ jobs:
 
       - name: Validate the reference engine unit
         run: |
-          # systemd-analyze needs a real root to resolve every path, so only
-          # parse errors are treated as failures here.
-          systemd-analyze verify examples/kiri.service 2>&1 \
-            | grep -viE 'unknown lvalue|unbound variable|Failed to create' || true
+          # systemd-analyze needs a real root to resolve every path, so
+          # the messages about unresolved paths are filtered out. What is
+          # NOT filtered is a syntax error — and the exit status has to
+          # reflect it. The previous version ended with `|| true` and a
+          # plain echo, so the step could never fail: appending garbage
+          # lines to the unit still reported "engine unit parsed".
+          out=$(systemd-analyze verify examples/kiri.service 2>&1 \
+            | grep -viE 'unknown lvalue|unbound variable|Failed to create' || true)
+          if echo "$out" | grep -qiE "Missing '='|Unknown key|Unknown lvalue|error:"; then
+            echo "$out"
+            echo "::error::examples/kiri.service has a syntax error"
+            exit 1
+          fi
           echo "engine unit parsed"
 
   secrets:
@@ -113,12 +122,12 @@ jobs:
       - name: Plant real leaks in a throwaway repository
         run: |
           set -euo pipefail
-          # The samples live in scripts/selftest-fixtures.sh so that this
+          # The samples live in tests/fixtures/plant-leaks.sh so that this
           # workflow file stays free of anything that looks like a
           # credential — otherwise the scanner would have to exempt the
           # workflow itself, which is a hole: a real token pasted into a
           # workflow would then go unnoticed.
-          bash scripts/selftest-fixtures.sh /tmp/leaks
+          bash tests/fixtures/plant-leaks.sh /tmp/leaks
 
       - name: The scanner must reject the planted leaks
         run: |
@@ -135,9 +144,34 @@ jobs:
             echo "::error::the scanner passed a repository full of planted leaks — it no longer detects them"
             fail=1
           fi
-          for expected in "leak.env" "guide.md" "net.conf" "key.pem" "ec.pem" "prose.txt" "homepath.md" "bridgeid.txt"; do
-            if ! echo "$out" | grep -q "$expected"; then
-              echo "::error::the scanner did not report the planted leak in $expected"
+          # Assert on the RULE that fired, not on the file name. A file
+          # name can appear in the output because some other rule
+          # happened to match it: a mutant with the private-key rule
+          # disabled still printed "key.pem" (the high-entropy rule
+          # matched its body) and the job went green. Each planted
+          # sample below is paired with the message of the rule that is
+          # supposed to catch it.
+          for pair in \
+            "leak.env:possible credential committed" \
+            "guide.md:a long high-entropy string (pasted credential?) in a tracked file" \
+            "net.conf:private LAN address committed" \
+            "key.pem:private key committed" \
+            "ec.pem:private key committed" \
+            "encrypted.pem:private key committed" \
+            "pgp.pem:private key committed" \
+            "prose.txt:possible credential committed" \
+            "homepath.md:host-specific home path committed" \
+            "macos.txt:host-specific home path committed" \
+            "bridgeid.txt:32-hex identifier (bridge id?) committed" \
+          ; do
+            sample="${pair%%:*}"
+            rule="${pair#*:}"
+            if ! echo "$out" | grep -qF "$rule"; then
+              echo "::error::the rule that should catch $sample did not fire: $rule"
+              fail=1
+            fi
+            if ! echo "$out" | grep -qF "$sample"; then
+              echo "::error::the scanner did not report the planted leak in $sample"
               fail=1
             fi
           done
@@ -226,11 +260,28 @@ jobs:
       - name: The documented version matches the release
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          [ "$tag" = "main" ] && exit 0
+          # GITHUB_REF_NAME is "<pr-number>/merge" on a pull_request
+          # event, so using it here made the job fail on every pull
+          # request: the READMEs would have had to literally contain
+          # "42/merge". Only check on a tag push, and on a branch push
+          # compare against the newest released version instead.
+          case "${GITHUB_REF_NAME}" in
+            refs/tags/*|v*) tag="${GITHUB_REF_NAME#refs/tags/}" ;;
+            *) tag="" ;;
+          esac
+          if [ -z "$tag" ]; then
+            # Not a release: the READMEs must mention the newest version
+            # the CHANGELOG announces.
+            tag=$(grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md \
+                  | head -1 | tr -d '[]# ')
+          fi
+          [ -n "$tag" ] || { echo "::error::could not determine the version"; exit 1; }
+          # The tag carries a "v" prefix; the READMEs show the bare
+          # version number.
+          bare="${tag#v}"
           for f in README.md README_EN.md; do
-            if ! grep -q "$tag" "$f"; then
-              echo "::error::$f does not mention the released version $tag"
+            if ! grep -q "$bare" "$f"; then
+              echo "::error::$f does not mention the released version $bare"
               exit 1
             fi
           done

@@ -1,6 +1,6 @@
 # symi-ha-stack
 
-**A production-grade container stack for Home Assistant + Matter Bridge** — four
+**A production-grade container stack for Home Assistant + Matter Bridge** — five
 services (Home Assistant / Mosquitto / Node-RED / Matter Hub) from one compose
 file, runnable on **either Docker or Kiri**, with automatic failure fallback.
 
@@ -24,7 +24,7 @@ The state of the existing pieces:
 
 **The gap is the integration layer.** Running those two together on a small home
 server hits a series of traps nobody has written down. This project open-sources
-that integration along with **four real boot-crash fixes**.
+that integration along with **five real boot-crash fixes**.
 
 ### Measured gains
 
@@ -60,7 +60,7 @@ minutes, no human needed.
 Both directions are tested, including the emergency case where the Docker
 daemon is not running when you switch to it.
 
-### 2. Four real boot crashes fixed
+### 2. Five real boot crashes fixed
 
 The most valuable part of this project. Full details in
 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
@@ -177,7 +177,9 @@ symi-ha-stack/
 │   ├── fix-permissions.sh      # fix bind-mount dir ownership (container uid)
 │   ├── backup.sh               # back up and restore
 │   ├── healthcheck.sh          # one-command health check (9 checks)
-│   └── sync-images.sh         # Docker → Kiri image sync
+│   ├── sync-images.sh         # Docker → Kiri image sync
+│   └── sanitize-scan.sh        # the sanitisation scan (CI and local runs share it)
+├── tests/fixtures/plant-leaks.sh  # planted leaks for the scanner self-test
 ├── systemd/
 │   ├── ha-stack.service               # Docker autostart
 │   ├── ha-stack-kiri.service          # Kiri autostart
@@ -224,7 +226,7 @@ exactly what `watch.sh` in this project is for.
 
 ## Versioning
 
-Current: **1.1.3**
+Current: **1.1.4**
 
 Semantic versioning from here: patch releases (1.1.x) for fixes and docs,
 minor releases (1.2.0) for features.

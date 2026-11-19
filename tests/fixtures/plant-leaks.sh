@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# selftest-fixtures.sh — plant real leaks so the sanitisation scanner can
+# plant-leaks.sh — plant real leaks so the sanitisation scanner can
 # be proven to still catch them.
 #
 # This file is a FIXTURE, not a configuration file. It deliberately
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-TARGET="${1:?usage: selftest-fixtures.sh TARGET_DIR}"
+TARGET="${1:?usage: plant-leaks.sh TARGET_DIR}"
 
 rm -rf "$TARGET"
 mkdir -p "$TARGET/examples"
@@ -50,6 +50,27 @@ printf 'the config lives at /home/alice/config and holds a token\n' > homepath.m
 # A Matter bridge id. home-assistant-matter-hub publishes them in
 # UPPERCASE, so a lowercase-only pattern would miss the real thing.
 printf 'bridge id 3F7A9C2B1D4E5F60718293A4B5C6D7E8 here\n' > bridgeid.txt
+
+# An encrypted private key. "BEGIN ENCRYPTED PRIVATE KEY" is a private
+# key too — the original rule only knew RSA, EC, DSA and OPENSSH.
+printf -- '-----BEGIN ENCRYPTED PRIVATE KEY-----\n' > encrypted.pem
+
+# A PGP private key block.
+printf -- '-----BEGIN PGP PRIVATE KEY BLOCK-----\n' > pgp.pem
+
+# A macOS home path with a dot in the user name. The original pattern
+# allowed only letters, digits, dash and underscore.
+printf 'the log lives at /Users/john.smith/app.log\n' > macos.txt
+
+# A macOS home path whose user name contains a dot. The original pattern
+# allowed only letters, digits, dash and underscore, so /Users/john.smith
+# passed.
+printf 'the log lives at /Users/john.smith/app.log\n' > macos.txt
+
+# The interface name of the machine this repository was developed on.
+# It is hardware information about the author's machine and has no
+# business being in a public repository.
+printf 'MDNS_INTERFACE=wlp0s20f3\n' > iface.txt
 
 # The legitimate counterpart of a .env, which the scanner must leave alone.
 printf 'TOKEN=REPLACE_WITH_YOUR_TOKEN\n' > examples/.env.example

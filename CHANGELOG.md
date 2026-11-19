@@ -9,6 +9,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] — 2026-11-19
+
+Patch release: the gates themselves are now real gates.
+
+A second independent review found that several of the checks added in
+1.1.2 could not fail. This release fixes the checks, not the code they
+check — except where the code was wrong too.
+
+### Fixed
+
+**The scan-self-test could pass with the scanner broken.** Its assertions
+only asked whether a file NAME appeared anywhere in the scanner's output.
+A mutant with the private-key rule disabled still printed `key.pem` — the
+high-entropy rule matched the file's body — and the job went green. The
+assertions now pair each planted sample with the message of the rule that
+is supposed to catch it, so a disabled rule turns the job red.
+
+**The systemd-unit validation could never fail.** It ended with `|| true`
+and a plain `echo`, so appending garbage lines to the unit still reported
+"engine unit parsed". It now looks for the parse errors systemd-analyze
+reports and exits 1.
+
+**The version check failed on every pull request.** It used
+`GITHUB_REF_NAME`, which is `<pr-number>/merge` on a pull_request event,
+so the READMEs would have had to literally contain "42/merge". It now
+uses the tag on a tag push and the newest CHANGELOG entry otherwise.
+
+**The private-key rule did not know encrypted or PGP keys.** It matched
+RSA, EC, DSA and OPENSSH headers only, so
+`-----BEGIN ENCRYPTED PRIVATE KEY-----` and
+`-----BEGIN PGP PRIVATE KEY BLOCK-----` passed.
+
+**The bridge-id rule skipped the documentation.** It excluded `*.md`,
+which is exactly where a pasted bridge id would survive. No 32-hex string
+exists in the markdown today, so the exclusion bought nothing and cost a
+blind spot. The rule now also matches uppercase, which is the form Matter
+Hub actually publishes.
+
+**The home-path rule missed macOS user names with a dot.** `/Users/john.smith/`
+passed; the pattern allowed only letters, digits, dash and underscore.
+
+**The requirement matrix gave false green lights.** Ten of its checks
+were string-presence assertions — they confirmed that a pattern's TEXT
+was on a line, never that the pattern matched anything. The worst was
+CI-02, which grepped the workflow file for the literal `*.md` and was
+satisfied by an unrelated string; excluding every markdown file from the
+scanner still reported "ok". The ones that named a behaviour are now
+behavioural: the matrix plants a private key and requires the scanner to
+catch it, it refuses an empty set where `all([])` would be true, it
+compares the README version against the CHANGELOG's newest entry, and it
+checks each documented script's executable bit individually instead of
+counting them.
+
+**The matrix's `sh()` helper could not tell "nothing matched" from "the
+command failed".** A check that read a file which did not exist passed
+silently. The helper now keeps stderr and distinguishes grep's "no
+match" (exit 1, no output) from a command that did not run.
+
+**The interface name of the machine this was developed on was in
+`examples/.env.example`.** A real wireless interface name is hardware
+information about the author's machine and has no business being in a
+public repository. The example now reads `eth0`, and the matrix keeps
+the real name out — it reads the name from the fixture file so that not
+even the matrix contains it.
+
+### Changed
+
+**The planted-leak samples moved to `tests/fixtures/`.** The scanner
+excluded them by file name, so a second fixture file would have escaped
+the gate unnoticed. It now excludes the directory, and the samples are
+the only place in the repository that contains a literal private-key
+header or device id — including the matrix itself, which reads its
+samples from there.
+
+**The documentation now says five boot crashes everywhere.** The title,
+the introduction and both READMEs still said four while the guide
+documented five.
+
+**The README project tree lists the scripts that exist**, and the
+`CONTRIBUTING.md` shellcheck command matches what CI runs
+(`--severity=warning`) — the bare command returned 1 on a clean tree.
+
+### Verification
+
+Every fix was checked in both directions: the scan must reject the
+planted leaks and accept the repository; the self-test must pass on the
+real scanner and go red on a mutant with a rule disabled; the unit
+validation must pass on a valid unit and fail on one with garbage
+appended; the version check must pass on `main`, on a tag and on a pull
+request, and fail when the README names the wrong version.
+
+The requirement matrix grew to 85 checks. Each new one was verified by
+reintroducing the regression it names.
+
+
 ## [1.1.3] — 2026-11-19
 
 Patch release: the log check now actually reads the log.

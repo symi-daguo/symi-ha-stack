@@ -23,9 +23,29 @@ os.chdir(REPO)
 
 
 def sh(cmd):
+    """Run a command and return its output.
+
+    stderr is folded into stdout and a non-zero exit is marked, because
+    a command that failed is not the same as a command that matched
+    nothing — the first review found a check that passed because the
+    file it read did not exist.
+    """
     try:
-        return subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                              timeout=60).stdout
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                           timeout=60)
+        out = r.stdout
+        if r.stderr.strip():
+            out += "\n" + r.stderr.strip()
+        # Exit status 1 with no output is grep's "no match" — a normal
+        # answer, not a failure. Anything else with no output means the
+        # command did not run, which is not the same as "nothing found",
+        # and the first review found a check that passed for exactly
+        # that reason.
+        if r.returncode not in (0, 1) and not out.strip():
+            out = f"(command failed with exit {r.returncode})"
+        elif r.returncode == 1 and not out.strip() and r.stderr.strip():
+            out = f"(command failed: {r.stderr.strip()})"
+        return out
     except Exception as e:
         return f"ERROR: {e}"
 
@@ -44,6 +64,69 @@ def has(pattern, files, flags="-nE"):
     cmd = f"grep {flags} '{pattern}' {' '.join(files)} 2>/dev/null | head -2"
     out = sh(cmd).strip()
     return (bool(out), out.replace("\n", " | ")[:180])
+
+
+def _scan_output():
+    """Run the scanner against this repository and return its output."""
+    return sh("bash scripts/sanitize-scan.sh 2>&1")
+
+
+def _fixture_iface():
+    """The interface name planted in the fixture file."""
+    for ln in _fixture_prints():
+        if ln.startswith("MDNS_INTERFACE="):
+            return ln.split("=", 1)[1]
+    return ""
+
+
+def _fixture_prints():
+    """The literal strings the fixture file writes.
+
+    The fixture holds the samples, so that no other tracked file
+    contains a real-looking private key header or device id.
+    """
+    out = []
+    for ln in sh("cat tests/fixtures/plant-leaks.sh").splitlines():
+        ln = ln.strip()
+        if not ln.startswith("printf"):
+            continue
+        # printf '...' > file   or   printf -- '...' > file
+        parts = ln.split("'")
+        if len(parts) >= 2:
+            text = parts[1].replace("\\n", "").rstrip("\\")
+            out.append(text)
+    return out
+
+
+def _fixture_lines(kind):
+    """Read the sample lines for a kind of leak from the fixture file."""
+    if kind == "private":
+        wanted = ("ENCRYPTED", "PGP")
+    else:
+        wanted = ()
+    return [t for t in _fixture_prints() if any(w in t for w in wanted)]
+
+
+def _planted_scan(lines):
+    """Plant the given lines in a throwaway repository and return the
+    number of scanner rules that fired. 1 means "the private key rule
+    fired"; 0 means it did not."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        sh(f"git init -q {d}")
+        sh(f"cd {d} && git config user.email t@t.invalid && git config user.name t")
+        for i, ln in enumerate(lines):
+            with open(f"{d}/sample{i}.txt", "w") as f:
+                f.write(ln + "\n")
+        sh(f"cd {d} && git add -A")
+        out = sh(f"bash {os.getcwd()}/scripts/sanitize-scan.sh --path {d} 2>&1")
+        return 1 if "private key committed" in out else 0
+
+
+def _ver(pattern, files):
+    """Extract the first version number matching pattern."""
+    m = re.search(pattern, sh("cat " + " ".join(files)), re.M)
+    return m.group(1) if m else ""
 
 
 def truthy(v):
@@ -79,9 +162,11 @@ REQUIREMENTS = [
      "五个开机坑全部有独立小节",
      lambda: (sh("grep -c '^## 坑 [0-9]' docs/TROUBLESHOOTING.md").strip() == "5")),
     ("DOC-06", "README.md:版本",
-     "README 与 README_EN 版本号一致",
-     lambda: (has(r'当前：\*\*(\S+?)\*\*', ["README.md"])[1].split("当前：")[1].strip("*） ") ==
-               has(r'Current: \*\*(\S+?)\*\*', ["README_EN.md"])[1].split("Current:")[1].strip("*） "))),
+     "README / README_EN 版本号一致，且等于 CHANGELOG 最新条目",
+     lambda: (lambda cn, en, cl: bool(cn) and cn == en and cn == cl)(
+         _ver(r'当前：\*\*([0-9.]+)\*\*', ["README.md"]),
+         _ver(r'Current: \*\*([0-9.]+)\*\*', ["README_EN.md"]),
+         _ver(r'^## \[([0-9]+\.[0-9]+\.[0-9]+)\]', ["CHANGELOG.md"]))),
     ("DOC-07", "docs/TROUBLESHOOTING.md",
      "英文摘要在文末且覆盖全部五个坑",
      lambda: (has(r'The fifth pitfall', ["docs/TROUBLESHOOTING.md"])[0]
@@ -172,9 +257,12 @@ REQUIREMENTS = [
     # ── systemd 契约 ──
     ("SYS-01", "systemd/*.service",
      "所有 ExecStartPost/ExecStopPost 带 '-' 前缀（失败不拖垮 unit）",
-     lambda: all(re.match(r'Exec(Start|Stop)Post=-', l.strip())
-                for l in sh("cat systemd/*.service examples/kiri.service").splitlines()
-                if re.match(r'\s*Exec(Start|Stop)Post=', l))),
+     # The list must not be empty: all([]) is True, so deleting every
+     # ExecStartPost from every unit used to pass this check.
+     lambda: (lambda ls: bool(ls) and all(re.match(r'Exec(Start|Stop)Post=-', l.strip())
+                                          for l in ls))(
+         [l for l in sh("cat systemd/*.service examples/kiri.service").splitlines()
+          if re.match(r'\s*Exec(Start|Stop)Post=', l)])),
     ("SYS-02", "systemd/*.service",
      "带等待的 unit 显式设置 TimeoutStartSec",
      lambda: has(r'TimeoutStartSec=', ["examples/kiri.service"])),
@@ -191,15 +279,23 @@ REQUIREMENTS = [
 
     # ── CI 契约 ──
     ("CI-01", ".github/workflows/ci.yml",
-     "四道闸门：lint / compose / 脱敏 / 文档",
+     "六道闸门：lint / compose / 脱敏 / 扫描自检 / 需求矩阵 / 文档",
      lambda: all(has(f'  {j}:', [".github/workflows/ci.yml"])[0]
-                 for j in ("lint", "compose", "secrets", "docs"))),
-    ("CI-02", ".github/workflows/ci.yml",
+                 for j in ("lint", "compose", "secrets", "scanner-selftest",
+                           "audit", "docs"))),
+    ("CI-02", "scripts/sanitize-scan.sh",
      "脱敏扫描覆盖文档（不排除 docs/ 与 README）",
-     lambda: has(r"'\*\.md'", [".github/workflows/ci.yml"])),
+     # Behaviour, not a string: the scanner must NOT exclude markdown.
+     # The previous version grepped the workflow for the literal
+     # "*.md", which is satisfied by an unrelated string and could not
+     # detect the regression it names.
+     lambda: not any("':!*.md'" in ln
+                      for ln in sh("cat scripts/sanitize-scan.sh").splitlines())),
     ("CI-03", "scripts/sanitize-scan.sh",
      "扫描规则不自匹配（私钥 pattern 拼开）",
-     lambda: hasf("BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE", ["scripts/sanitize-scan.sh"])),
+     # Behaviour: the scanner must not report its own source file.
+     lambda: _scan_output().find("private key committed") == -1
+             or "sanitize-scan.sh" not in _scan_output()),
     ("CI-04", ".github/workflows/ci.yml",
      "链接检查用进程替换（管道子 shell 里 exit 1 不生效）",
      lambda: has(r'done < <\(', [".github/workflows/ci.yml"])),
@@ -222,19 +318,23 @@ REQUIREMENTS = [
      "有散文长串规则（贴进文档的 token 不会被变量名规则抓到）",
      lambda: hasf("[A-Za-z0-9+/]{40,}={0,2}", ["scripts/sanitize-scan.sh"])),
     ("SCAN-04", "scripts/sanitize-scan.sh",
-     "私钥 pattern 拼开不自匹配",
-     lambda: hasf("BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE", ["scripts/sanitize-scan.sh"])),
+     "私钥规则抓得到 ENCRYPTED / PGP 私钥头，且不自匹配",
+     # Behaviour: plant an encrypted and a PGP private key in a
+     # throwaway repository and require the scanner to catch both.
+     # The headers come from the fixture file so that this file does not
+     # itself contain a literal private key header.
+     lambda: _planted_scan(_fixture_lines("private")) == 1),
     ("SCAN-05", "scripts/sanitize-scan.sh",
-     "自检样本文件被排除（否则扫描器永远红）",
-     lambda: hasf(":!scripts/selftest-fixtures.sh", ["scripts/sanitize-scan.sh"])),
+     "自检样本目录被排除（否则扫描器永远红）",
+     lambda: hasf(":!tests/fixtures/", ["scripts/sanitize-scan.sh"])),
     ("SCAN-06", "scripts/sanitize-scan.sh",
      "CI workflow 本身不被豁免（豁免它等于给真 token 开后门）",
      lambda: (":!.github/workflows" not in sh("cat scripts/sanitize-scan.sh")
                and "ci.yml:" not in sh("cat scripts/sanitize-scan.sh"))),
-    ("SCAN-07", "scripts/selftest-fixtures.sh",
+    ("SCAN-07", "tests/fixtures/plant-leaks.sh",
      "样本脚本存在且用 openssl 生成真私钥",
-     lambda: (os.path.exists("scripts/selftest-fixtures.sh")
-               and hasf("openssl genrsa", ["scripts/selftest-fixtures.sh"])[0])),
+     lambda: (os.path.exists("tests/fixtures/plant-leaks.sh")
+               and hasf("openssl genrsa", ["tests/fixtures/plant-leaks.sh"])[0])),
     ("SCAN-08", ".github/workflows/ci.yml",
      "有 scanner-selftest job（防扫描规则退化）",
      lambda: hasf("scanner-selftest:", [".github/workflows/ci.yml"])),
@@ -250,7 +350,7 @@ REQUIREMENTS = [
     ("SCAN-12", "CONTRIBUTING.md",
      "文档说明了扫描器与自检的用法（中英）",
      lambda: (hasf("./scripts/sanitize-scan.sh", ["CONTRIBUTING.md"])[0]
-               and hasf("./scripts/selftest-fixtures.sh", ["CONTRIBUTING.md"])[0])),
+               and hasf("./tests/fixtures/plant-leaks.sh", ["CONTRIBUTING.md"])[0])),
 
     # ── README 可执行性（v1.1.2 新增）──
     ("RM-01", "README.md:快速开始",
@@ -297,9 +397,9 @@ REQUIREMENTS = [
                and not hasf("四个开机崩溃", ["docs/TROUBLESHOOTING.md"])[0]
                and not hasf("Four Boot Crashes", ["docs/TROUBLESHOOTING.md"])[0]
                and not hasf("four boot crashes", ["README.md", "README_EN.md"])[0])),
-    ("REV-06", "scripts/selftest-fixtures.sh",
+    ("REV-06", "tests/fixtures/plant-leaks.sh",
      "fixture 覆盖大写 bridge id",
-     lambda: hasf("bridgeid.txt", ["scripts/selftest-fixtures.sh"])),
+     lambda: hasf("bridgeid.txt", ["tests/fixtures/plant-leaks.sh"])),
 
     # ── 健康检查（v1.1.2 补充）──
     ("HC-01", "scripts/healthcheck.sh",
@@ -309,6 +409,59 @@ REQUIREMENTS = [
     ("HC-02", "scripts/healthcheck.sh",
      "区分'读不到日志'和'无错误'（空日志不能报成正常）",
      lambda: hasf("读不到 homeassistant 日志", ["scripts/healthcheck.sh"])),
+
+    # ── 第二轮独立审查发现的洞 ──
+    ("R2-01", "scripts/sanitize-scan.sh",
+     "私钥规则认 ENCRYPTED / PGP 私钥头（不只是 RSA/EC/DSA/OPENSSH）",
+     lambda: ("ENCRYPTED" in sh("cat scripts/sanitize-scan.sh")
+              and "PGP" in sh("cat scripts/sanitize-scan.sh"))),
+    ("R2-02", "scripts/sanitize-scan.sh",
+     "bridge id 规则不排除 markdown（文档是粘贴 id 最容易存活的地方）",
+     lambda: not any("':!*.md'" in ln
+                      for ln in sh("cat scripts/sanitize-scan.sh").splitlines())),
+    ("R2-03", "scripts/sanitize-scan.sh",
+     "家目录规则允许 macOS 带点的用户名（john.smith）",
+     lambda: "[a-z0-9_.-]*" in sh("cat scripts/sanitize-scan.sh")
+              or "[A-Za-z0-9_.-]*" in sh("cat scripts/sanitize-scan.sh")),
+    ("R2-04", ".github/workflows/ci.yml",
+     "扫描自检按规则消息断言，不是按文件名（文件名会被别的规则带出来）",
+     lambda: (hasf("the rule that should catch", [".github/workflows/ci.yml"])[0]
+               and not hasf('for expected in "leak.env"', [".github/workflows/ci.yml"])[0])),
+    ("R2-05", ".github/workflows/ci.yml",
+     "systemd 校验真正传播失败（有语法错误时 exit 1）",
+     lambda: (hasf("has a syntax error", [".github/workflows/ci.yml"])[0]
+               and hasf("exit 1", [".github/workflows/ci.yml"])[0])),
+    ("R2-06", ".github/workflows/ci.yml",
+     "版本检查不因 pull_request 事件必然红（不用 GITHUB_REF_NAME 直接比）",
+     lambda: (hasf('"${pr}/merge"', [".github/workflows/ci.yml"])[0]
+               or hasf("42/merge", [".github/workflows/ci.yml"])[0]
+               or hasf('GITHUB_REF_NAME" in', [".github/workflows/ci.yml"])[0])),
+    ("R2-07", "tools/audit-matrix.py",
+     "CI-02 查的是扫描器行为，不是 workflow 里的字符串",
+     lambda: "':!*.md'" not in sh("cat scripts/sanitize-scan.sh")),
+    ("R2-08", "tools/audit-matrix.py",
+     "DOC-06 要求 README 版本等于 CHANGELOG 最新条目",
+     lambda: hasf("CHANGELOG.md", ["tools/audit-matrix.py"])),
+    ("R2-09", "tools/audit-matrix.py",
+     "SYS-01 拒绝空列表（all([]) 为 True 的陷阱）",
+     lambda: hasf("bool(ls)", ["tools/audit-matrix.py"])),
+    ("R2-10", "tools/audit-matrix.py",
+     "sh() 保留 stderr 和退出码（失败≠没匹配）",
+     lambda: hasf("command failed with exit", ["tools/audit-matrix.py"])),
+    ("R2-11", "README.md / README_EN.md",
+     "项目结构树列出全部脚本（含新增的两个）",
+     lambda: (hasf("sanitize-scan.sh", ["README.md"])[0]
+               and hasf("plant-leaks.sh", ["README.md"])[0]
+               and hasf("sanitize-scan.sh", ["README_EN.md"])[0]
+               and hasf("plant-leaks.sh", ["README_EN.md"])[0])),
+    ("R2-12", "全仓库",
+     "不出现开发机的真实网卡名（暴露硬件信息）",
+     # The name is read from the fixture file, so this file does not
+     # contain it either. `git grep` exits 1 when it finds nothing, so
+     # the match list is taken from a pipeline whose exit status is the
+     # grep's, not git's.
+     lambda: not sh("git grep -l -F '%s' -- . ':!tests/fixtures/' 2>/dev/null "
+                    "| cat" % _fixture_iface()).strip()),
 
     # ── GitHub 规范 ──
     ("GH-01", "仓库根",
@@ -332,8 +485,12 @@ REQUIREMENTS = [
      lambda: all(p in sh("cat .gitignore") for p in
                   (".env", "ha-config", "matter-hub-data", "nodered-data"))),
     ("GH-07", "仓库根",
-     "脚本在 git index 里带可执行位",
-     lambda: int(sh("git ls-files -s | grep -c '^100755'").strip() or 0) >= 8),
+     "文档里让读者运行的每个脚本在 git index 里都带可执行位",
+     # Per-file, not a count: four scripts could lose their bit and a
+     # count would still pass.
+     lambda: all("100755" in l for l in sh(
+         "git ls-files -s scripts/ install/").splitlines()
+         if l.strip()) and bool(sh("git ls-files -s scripts/ install/").strip())),
 ]
 
 

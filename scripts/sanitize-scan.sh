@@ -35,10 +35,12 @@ fi
 
 fail=0
 
-# The self-test samples live in scripts/selftest-fixtures.sh, which is
-# excluded by name — they are fixtures, not leaks, and they have to look
-# like real ones for the self-test to mean anything. Everything else,
-# including the workflow file itself, is scanned.
+# The self-test samples live in tests/fixtures/, which is excluded as a
+# DIRECTORY — they are fixtures, not leaks, and they have to look like
+# real ones for the self-test to mean anything. A directory exclusion
+# rather than a file name, so a second fixture file does not silently
+# escape the gate. Everything else, including the workflow file itself,
+# is scanned.
 
 report() {
   echo "::error::$1"
@@ -50,7 +52,7 @@ report() {
 #    directories — documentation is exactly where a pasted token survives.
 hits=$(git grep -nIE \
   '(HAMH_HA_TOKEN|HASS_TOKEN|HA_TOKEN|TOKEN|MQTT_PASSWORD|MQTT_PASS|PASSWORD|PASSWD|ACCESS_TOKEN|AUTH_TOKEN|API_KEY|APIKEY|SECRET_KEY|SECRET|PRIVATE_KEY|CREDENTIAL)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9+/=_-]{16,}' \
-  -- . ':!examples/.env.example' ':!scripts/selftest-fixtures.sh' 2>/dev/null \
+  -- . ':!examples/.env.example' ':!tests/fixtures/' 2>/dev/null \
   | grep -vE 'REPLACE_WITH|CHANGE_ME|dummy|placeholder|example[_-]?token|your[_-]?(token|password|key)|\$\(|<[^>]+>|\{[^}]+\}|xxxxx|\*{4,}' || true)
 if [ -n "$hits" ]; then
   echo "$hits"
@@ -63,7 +65,7 @@ fi
 #    high-entropy run (JWT-like, 183 characters), so any base64-ish run
 #    that long deserves a human look.
 hits=$(git grep -nE '[A-Za-z0-9+/]{40,}={0,2}' \
-  -- . ':!examples/.env.example' ':!scripts/selftest-fixtures.sh' 2>/dev/null \
+  -- . ':!examples/.env.example' ':!tests/fixtures/' 2>/dev/null \
   | grep -vE 'REPLACE_WITH|CHANGE_ME|dummy|placeholder|xxxxx|sanitize-scan\.sh:' || true)
 if [ -n "$hits" ]; then
   echo "$hits"
@@ -72,14 +74,20 @@ fi
 
 # 3. Private key blocks.
 #    The pattern is built from parts so this rule does not match its own
-#    source line.
-if git grep -nE 'BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE' -- . ':!scripts/selftest-fixtures.sh' 2>/dev/null; then
+#    source line — the literal headers this rule looks for are named in
+#    the fixture file instead, which is excluded by name.
+#    Encrypted and PGP private keys are private keys too.
+if git grep -nE 'BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIV(A|E)TE|BEGIN PGP PRIV(A|E)TE' \
+  -- . ':!tests/fixtures/' 2>/dev/null; then
   report "private key committed"
 fi
 
 # 4. Host-specific absolute paths.
-hits=$(git grep -nIE '(^|[^A-Za-z0-9_])/home/[a-z][a-z0-9_-]*/|/Users/[A-Za-z][A-Za-z0-9_-]*/' \
-  -- . ':!examples/.env.example' ':!scripts/selftest-fixtures.sh' 2>/dev/null \
+# A macOS user name may contain a dot, so the name part allows dots too.
+# The example is in the fixture file, which is excluded by name, so this
+# comment does not trip the rule.
+hits=$(git grep -nIE '(^|[^A-Za-z0-9_])/home/[a-z][a-z0-9_.-]*/|/Users/[A-Za-z][A-Za-z0-9_.-]*/' \
+  -- . ':!examples/.env.example' ':!tests/fixtures/' 2>/dev/null \
   | grep -vE '/home/<|/Users/<|your-username|\$HOME' || true)
 if [ -n "$hits" ]; then
   echo "$hits"
@@ -90,8 +98,8 @@ fi
 #    notation (NO_PROXY=192.168.0.0/16) are configuration intent, not a
 #    leak — only concrete addresses are.
 hits=$(git grep -nIE '\b(10|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]{1,3}\.[0-9]{1,3}\b' \
-  -- . ':!scripts/selftest-fixtures.sh' 2>/dev/null \
-  | grep -vE '192\.168\.0\.0/16|172\.16\.0\.0/12|10\.0\.0\.0/8|192\.168\.x|selftest-fixtures\.sh:' || true)
+  -- . ':!tests/fixtures/' 2>/dev/null \
+  | grep -vE '192\.168\.0\.0/16|172\.16\.0\.0/12|10\.0\.0\.0/8|192\.168\.x': || true)
 if [ -n "$hits" ]; then
   echo "$hits"
   report "private LAN address committed"
@@ -99,19 +107,19 @@ fi
 
 # 6. Device identifiers: MAC addresses and Matter bridge ids.
 hits=$(git grep -nE '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' \
-  -- . ':!scripts/selftest-fixtures.sh' 2>/dev/null || true)
+  -- . ':!tests/fixtures/' 2>/dev/null || true)
 if [ -n "$hits" ]; then
   echo "$hits"
   report "MAC address committed"
 fi
 
-# A bridge id is 32 hex characters. The troubleshooting guide mentions it
-# as a redacted example, so only flag it outside the documentation.
 # A bridge id is 32 hex characters. home-assistant-matter-hub publishes
 # them in UPPERCASE, so the pattern has to accept both cases. The
-# troubleshooting guide mentions one as a redacted example, so only flag
-# it outside the documentation.
-if git grep -niE '\b[0-9a-f]{32}\b' -- . ':!*.md' ':!scripts/selftest-fixtures.sh' 2>/dev/null; then
+# documentation is NOT excluded: a bridge id pasted into a troubleshooting
+# guide is exactly where one would survive, and the guide holds no
+# 32-hex string today, so excluding it bought nothing and cost a blind
+# spot.
+if git grep -niE '\b[0-9a-f]{32}\b' -- . ':!tests/fixtures/' 2>/dev/null; then
   report "32-hex identifier (bridge id?) committed"
 fi
 

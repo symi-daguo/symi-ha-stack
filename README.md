@@ -23,7 +23,7 @@
 | HA 容器编排 | 社区零散 compose | ❌ 没有生产级整合 |
 
 **空白在整合层**：把这两者组合起来跑在小型家用服务器上，会撞上一串没人写下来的坑。
-本项目把这套整合连同**四个真实的开机崩溃修复**一起开源出来。
+本项目把这套整合连同**五个真实的开机崩溃修复**一起开源出来。
 
 ### 实测收益
 
@@ -56,7 +56,7 @@ Mosquitto ~19 MB）。省的是引擎和镜像。
 
 双向切换均已实测，包括「dockerd 停着时切 Docker」这种应急场景。
 
-### 2. 修复了四个真实的开机崩溃
+### 2. 修复了五个真实的开机崩溃
 
 这些是本项目最有价值的部分。详见 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)。
 
@@ -168,7 +168,9 @@ symi-ha-stack/
 │   ├── fix-permissions.sh      # 修正 bind mount 目录属主（容器内 uid）
 │   ├── backup.sh               # 备份/恢复（打包 + 保留份数）
 │   ├── healthcheck.sh          # 一键体检（9 项检查）
-│   └── sync-images.sh         # Docker → Kiri 镜像同步
+│   ├── sync-images.sh         # Docker → Kiri 镜像同步
+│   └── sanitize-scan.sh        # 脱敏扫描（CI 与本地共用）
+├── tests/fixtures/plant-leaks.sh  # planted leaks for the scanner self-test
 ├── systemd/
 │   ├── ha-stack.service               # Docker 版自启
 │   ├── ha-stack-kiri.service          # Kiri 版自启
@@ -177,7 +179,7 @@ symi-ha-stack/
 ├── docs/
 │   ├── OPERATIONS.md          # 运维手册（中文）
 │   ├── OPERATIONS_EN.md       # 运维手册（English）
-│   └── TROUBLESHOOTING.md     # 四个开机坑详解
+│   └── TROUBLESHOOTING.md     # 五个开机坑详解
 ├── install/install.sh         # 一键安装
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
@@ -214,7 +216,7 @@ Kiri 目前仍是 beta（0.2.x）。**请务必同时部署自动回落** ——
 
 ## 版本
 
-当前：**1.1.3**
+当前：**1.1.4**
 
 后续按语义化版本迭代：小版本（1.1.x）修 bug 与文档，中版本（1.2.0）加功能。
 
