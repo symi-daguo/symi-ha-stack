@@ -38,6 +38,15 @@ printf 'HOST=192.168.31.79\nMAC=C8:6E:08:08:27:70\n' > net.conf
 openssl genrsa -out key.pem 2048 2>/dev/null
 openssl ecparam -genkey -name prime256v1 -noout -out ec.pem 2>/dev/null
 
+# A credential on a line that also contains the word "example". The rules
+# once excluded the bare word "example" to let the placeholder file
+# through, which skipped the WHOLE line — a real credential written in a
+# sentence containing "example" passed the scan.
+printf 'for example set MQTT_PASSWORD=AbCdEf0123456789XYZ here\n' > prose.txt
+
+# A credential in a home directory path.
+printf 'the config lives at /home/alice/config and holds a token\n' > homepath.md
+
 # The legitimate counterpart of a .env, which the scanner must leave alone.
 printf 'TOKEN=REPLACE_WITH_YOUR_TOKEN\n' > examples/.env.example
 

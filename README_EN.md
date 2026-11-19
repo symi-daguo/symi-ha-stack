@@ -110,11 +110,12 @@ git clone https://github.com/symi-daguo/symi-ha-stack.git
 cd symi-ha-stack
 
 export STACK_DIR=/opt/ha-stack
-cp examples/.env.example "$STACK_DIR.env"
+sudo mkdir -p "$STACK_DIR"
+cp examples/.env.example "$STACK_DIR/.env"
 cp examples/docker-compose.yml "$STACK_DIR/docker-compose.yml"
 ```
 
-Edit `.env` and fill in at least these three:
+Edit `$STACK_DIR/.env` (that is, `/opt/ha-stack/.env`) and fill in at least these three:
 
 ```ini
 STACK_DIR=/opt/ha-stack

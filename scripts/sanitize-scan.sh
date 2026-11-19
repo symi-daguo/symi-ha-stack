@@ -14,11 +14,24 @@
 
 set -uo pipefail
 
-REPO="${STACK_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+# The repository to scan is the one this script lives in. It is NOT
+# STACK_DIR: that variable names the stack's data directory, and reusing
+# it here meant an unrelated STACK_DIR in the environment silently
+# pointed the scan at a different directory — or at a non-repository,
+# where the scan found nothing and reported "clean".
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
 if [ "${1:-}" = "--path" ]; then
   REPO="${2:?--path needs a directory}"
 fi
 cd "$REPO" || exit 1
+
+# A repository is required. Without this, a scan of a non-repository
+# directory reports "clean" — the worst possible failure mode for a
+# gate that protects a public repository.
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "::error::$REPO is not a git repository — nothing was scanned"
+  exit 1
+fi
 
 fail=0
 
@@ -38,7 +51,7 @@ report() {
 hits=$(git grep -nIE \
   '(HAMH_HA_TOKEN|HASS_TOKEN|HA_TOKEN|TOKEN|MQTT_PASSWORD|MQTT_PASS|PASSWORD|PASSWD|ACCESS_TOKEN|AUTH_TOKEN|API_KEY|APIKEY|SECRET_KEY|SECRET|PRIVATE_KEY|CREDENTIAL)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9+/=_-]{16,}' \
   -- . ':!examples/.env.example' ':!scripts/selftest-fixtures.sh' 2>/dev/null \
-  | grep -vE 'REPLACE_WITH|CHANGE_ME|dummy|example|\$\(|<[^>]+>|\{[^}]+\}|xxxxx' || true)
+  | grep -vE 'REPLACE_WITH|CHANGE_ME|dummy|placeholder|example[_-]?token|your[_-]?(token|password|key)|\$\(|<[^>]+>|\{[^}]+\}|xxxxx|\*{4,}' || true)
 if [ -n "$hits" ]; then
   echo "$hits"
   report "possible credential committed"

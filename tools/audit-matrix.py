@@ -252,6 +252,29 @@ REQUIREMENTS = [
      lambda: (hasf("./scripts/sanitize-scan.sh", ["CONTRIBUTING.md"])[0]
                and hasf("./scripts/selftest-fixtures.sh", ["CONTRIBUTING.md"])[0])),
 
+    # ── README 可执行性（v1.1.2 新增）──
+    ("RM-01", "README.md:快速开始",
+     "复制 .env 的目标路径正确（$STACK_DIR/.env，不是 $STACK_DIR.env）",
+     lambda: (hasf('"$STACK_DIR/.env"', ["README.md"])[0]
+               and not hasf('"$STACK_DIR.env"', ["README.md"])[0])),
+    ("RM-02", "README_EN.md:Quick start",
+     "复制 .env 的目标路径正确",
+     lambda: (hasf('"$STACK_DIR/.env"', ["README_EN.md"])[0]
+               and not hasf('"$STACK_DIR.env"', ["README_EN.md"])[0])),
+    ("RM-03", "README.md:快速开始",
+     "复制前先创建 STACK_DIR（否则 cp 失败）",
+     lambda: (hasf('mkdir -p "$STACK_DIR"', ["README.md"])[0]
+               and hasf('mkdir -p "$STACK_DIR"', ["README_EN.md"])[0])),
+    ("RM-04", "scripts/sanitize-scan.sh",
+     "扫描目标不依赖 STACK_DIR（那是栈的数据目录，不是仓库）",
+     # Only the code matters — the comment explaining why STACK_DIR is
+     # NOT used necessarily mentions it.
+     lambda: not any("STACK_DIR" in ln and not ln.strip().startswith("#")
+                      for ln in sh("cat scripts/sanitize-scan.sh").splitlines())),
+    ("RM-05", "scripts/sanitize-scan.sh",
+     "非 git 目录必须报错，不能报'干净'",
+     lambda: hasf("is not a git repository", ["scripts/sanitize-scan.sh"])),
+
     # ── GitHub 规范 ──
     ("GH-01", "仓库根",
      "LICENSE 存在且是 MIT",
