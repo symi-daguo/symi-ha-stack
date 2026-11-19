@@ -182,8 +182,17 @@ UNITDIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 if [ "$INSTALL_SYSTEMD" = "1" ] && [ -d "$UNITDIR" ] && command -v systemctl >/dev/null 2>&1; then
   say "安装 systemd user unit"
   mkdir -p "$UNITDIR"
-  sed "s|/opt/ha-stack|$STACK_DIR|g" "$REPO_DIR/systemd/ha-stack-watch.service" > "$UNITDIR/ha-stack-watch.service"
-  sed "s|/opt/ha-stack|$STACK_DIR|g" "$REPO_DIR/systemd/ha-stack-kiri.service" > "$UNITDIR/ha-stack-kiri.service"
+  # Rewrite both the ExecStart path AND the Environment=STACK_DIR line.
+  # Rewriting only the path would leave STACK_DIR at its built-in default
+  # (/opt/ha-stack), so the scripts would operate on the wrong directory
+  # when the stack is installed somewhere else.
+  for unit in ha-stack-watch ha-stack-kiri; do
+    sed -e "s|/opt/ha-stack|$STACK_DIR|g" \
+        -e "s|^Environment=STACK_DIR=.*|Environment=STACK_DIR=$STACK_DIR|" \
+        "$REPO_DIR/systemd/$unit.service" > "$UNITDIR/$unit.service"
+  done
+  echo "  已写入 $UNITDIR/ha-stack-watch.service, ha-stack-kiri.service"
+  echo "  （STACK_DIR=$STACK_DIR）"
   systemctl --user daemon-reload
   if systemctl --user enable ha-stack-watch.service 2>/dev/null; then
     echo "  ha-stack-watch.service 已启用（自动回落监控）"

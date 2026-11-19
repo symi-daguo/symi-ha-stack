@@ -47,7 +47,10 @@ while true; do
   #                                 unhealthy, otherwise the monitor waits
   #                                 forever and the stack never comes back.
   ha_on_kiri=$(env "DOCKER_HOST=$KIRI_SOCK" "$KIRI_DOCKER" ps --format '{{.Names}}' 2>/dev/null | grep -cx homeassistant)
-  ha_on_docker=$(docker ps --filter name=^/homeassistant$ --format '{{.Names}}' 2>/dev/null | grep -cx homeassistant)
+  # Unset DOCKER_HOST here: when this script runs under a Kiri context the
+  # plain docker CLI would try to talk to the Kiri socket and fail.
+  ha_on_docker=$(env -u DOCKER_HOST docker ps --filter name=^/homeassistant$ \
+                 --format '{{.Names}}' 2>/dev/null | grep -cx homeassistant)
 
   if [ "$ha_on_kiri" -eq 0 ]; then
     if [ "$ha_on_docker" -gt 0 ]; then

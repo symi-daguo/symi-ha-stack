@@ -4,6 +4,11 @@ Documentation=https://github.com/symi-daguo/symi-ha-stack
 
 [Service]
 Type=simple
+# The scripts locate the stack through STACK_DIR. The installer rewrites the
+# ExecStart path, but the environment variable has to be set separately —
+# otherwise the script falls back to its built-in default (/opt/ha-stack)
+# and watches the wrong directory when the stack lives somewhere else.
+Environment=STACK_DIR=/opt/ha-stack
 ExecStart=/bin/bash /opt/ha-stack/scripts/watch.sh
 Restart=always
 RestartSec=30

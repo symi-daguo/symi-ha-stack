@@ -9,6 +9,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-11-19
+
+New operational tooling, plus a fix for a bug that only shows up when the
+stack is installed somewhere other than the default path.
+
+### Added
+
+- **`scripts/healthcheck.sh`** — one command that checks nine things: which
+  engine is running, all four containers, the three HTTP endpoints, MQTT
+  authentication, a leftover AppArmor profile, mDNS leaking onto internal
+  interfaces, the HA entity registry, recent errors in the HA log, and the
+  bind-mount directory ownership. Each problem is reported with the command
+  that fixes it. Exit code 0 means healthy, so it can be wired into
+  monitoring directly.
+- **`scripts/backup.sh`** — timestamped archive of `ha-config`,
+  `matter-hub-data`, `nodered-data`, `mosquitto/config`, the compose file and
+  `.env`. Archives are written with mode 600 because they contain the HA
+  token. Supports a custom destination and `--keep N` pruning. The
+  operations manual referenced this script since v1.0.0 but it did not
+  exist.
+- **`examples/kiri.service`** — reference engine unit carrying the
+  `TimeoutStartSec` and `ExecStartPost=-` fixes, with a comment on each.
+
+### Fixed
+
+- **The systemd units did not pass `STACK_DIR` to the scripts.** The
+  installer rewrote the `ExecStart` path, but the scripts locate the stack
+  through the `STACK_DIR` environment variable — which stayed at its
+  built-in default. Installing to anything other than `/opt/ha-stack` made
+  the units operate on the wrong directory. The units now set
+  `Environment=STACK_DIR=` and the installer rewrites that line too.
+- **`fix-permissions.sh` changed the wrong directories.** It set the
+  ownership of `mosquitto/` as a whole, which also took the plaintext
+  password file away from the installing user. It now only touches the
+  directories the container actually writes to (`mosquitto/config`,
+  `mosquitto/data`, `mosquitto/log`) and leaves the parent with the
+  installer.
+- **`healthcheck.sh` looked for the MQTT password in the wrong place** and
+  reported the whole `mosquitto/` tree as needing uid 1883. Both are fixed;
+  the check now also accepts the older layout where the password file sits
+  one level up.
+
+### Notes
+
+Two of these were found by running `healthcheck.sh` against the live
+production stack, which is the point of shipping it: the Node-RED data
+directory was owned by root instead of uid 1000, and the Mosquitto
+directories had drifted. Both are latent failures on Kiri — Docker hides
+them because its root has `CAP_DAC_OVERRIDE` and can read anything.
+
+
 ## [1.0.1] — 2026-11-19
 
 Fixes found by actually running the published repository end to end: a fresh

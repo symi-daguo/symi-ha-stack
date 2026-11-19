@@ -226,10 +226,14 @@ Matter Hub 升级后**配对码不变**（持久化在 `/data/`），不需要�
 ### 快速自检
 
 ```bash
+/opt/ha-stack/scripts/healthcheck.sh
+```
+
+或者手工看最关键的三项：
+
+```bash
 /opt/ha-stack/scripts/engine.sh status
 curl -s -o /dev/null -w 'HA %{http_code}\n'   http://127.0.0.1:8123/
-curl -s -o /dev/null -w 'NR %{http_code}\n'   http://127.0.0.1:1880/
-curl -s -o /dev/null -w 'MH %{http_code}\n'   http://127.0.0.1:8482/
 grep '/usr/sbin/mosquitto' /sys/kernel/security/apparmor/profiles   # 应无输出
 ```
 

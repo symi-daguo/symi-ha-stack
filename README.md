@@ -165,6 +165,8 @@ symi-ha-stack/
 │   ├── disable-mosquitto-apparmor.sh  # 卸载残留 AppArmor profile
 │   ├── setup-mqtt.sh          # 生成 MQTT 凭据
 │   ├── fix-permissions.sh      # 修正 bind mount 目录属主（容器内 uid）
+│   ├── backup.sh               # 备份/恢复（打包 + 保留份数）
+│   ├── healthcheck.sh          # 一键体检（9 项检查）
 │   └── sync-images.sh         # Docker → Kiri 镜像同步
 ├── systemd/
 │   ├── ha-stack.service               # Docker 版自启

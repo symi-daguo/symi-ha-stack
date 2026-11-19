@@ -134,6 +134,35 @@ tar czf ha-stack-$(date +%Y%m%d).tar.gz \
   docker-compose.yml .env
 ```
 
+### The backup script
+
+```bash
+/opt/ha-stack/scripts/backup.sh              # into $STACK_DIR/backup/
+/opt/ha-stack/scripts/backup.sh /mnt/nas/ha  # somewhere else
+/opt/ha-stack/scripts/backup.sh --keep 14    # keep the 14 most recent
+```
+
+Archives are written with mode 600 — they contain the HA token. Restore:
+
+```bash
+cd $STACK_DIR && docker compose down
+tar xzf backup/ha-stack-20261119-120000.tar.gz -C $STACK_DIR
+docker compose up -d
+```
+
+### One-command health check
+
+```bash
+/opt/ha-stack/scripts/healthcheck.sh
+```
+
+Checks nine things: the engine, all four containers, the HTTP endpoints, MQTT
+authentication, a leftover AppArmor profile, mDNS leaking onto internal
+interfaces, the HA entity registry, recent errors in the HA log, and the
+bind-mount directory ownership. Each problem is reported with the command
+that fixes it. Exit code 0 means healthy, 1 means problems found — so it can
+be wired straight into monitoring.
+
 ### Restore
 
 ```bash
@@ -215,10 +244,14 @@ Full boot-crash analysis: [TROUBLESHOOTING.md](TROUBLESHOOTING.md). Quick table:
 ### Quick self-check
 
 ```bash
+/opt/ha-stack/scripts/healthcheck.sh
+```
+
+Or check the three most important things by hand:
+
+```bash
 /opt/ha-stack/scripts/engine.sh status
 curl -s -o /dev/null -w 'HA %{http_code}\n'   http://127.0.0.1:8123/
-curl -s -o /dev/null -w 'NR %{http_code}\n'   http://127.0.0.1:1880/
-curl -s -o /dev/null -w 'MH %{http_code}\n'   http://127.0.0.1:8482/
 grep '/usr/sbin/mosquitto' /sys/kernel/security/apparmor/profiles   # should print nothing
 ```
 

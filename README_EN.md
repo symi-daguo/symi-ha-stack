@@ -174,6 +174,8 @@ symi-ha-stack/
 │   ├── disable-mosquitto-apparmor.sh  # unload leftover AppArmor profile
 │   ├── setup-mqtt.sh          # generate MQTT credentials
 │   ├── fix-permissions.sh      # fix bind-mount dir ownership (container uid)
+│   ├── backup.sh               # back up and restore
+│   ├── healthcheck.sh          # one-command health check (9 checks)
 │   └── sync-images.sh         # Docker → Kiri image sync
 ├── systemd/
 │   ├── ha-stack.service               # Docker autostart

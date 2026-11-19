@@ -27,8 +27,13 @@ set -euo pipefail
 STACK_DIR="${STACK_DIR:-/opt/ha-stack}"
 # uid:gid per service. mosquitto and node-red are the two that run as a
 # non-root uid; HA and Matter Hub run as root and need no adjustment.
+# Only the directories the container actually writes to. The parent
+# directories stay with the installing user, because the installer has to
+# keep reading the plaintext password file from them.
 declare -A OWNERS=(
-  [mosquitto]="1883:1883"
+  [mosquitto/config]="1883:1883"
+  [mosquitto/data]="1883:1883"
+  [mosquitto/log]="1883:1883"
   [nodered-data]="1000:1000"
 )
 
