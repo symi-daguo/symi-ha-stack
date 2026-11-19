@@ -8,7 +8,7 @@
 #   ./sync-images.sh <image>...   # sync specific images
 set -euo pipefail
 
-KIRI_SOCK="${KIRI_SOCK:-/run/kiri/docker.sock}"
+KIRI_SOCK="${KIRI_SOCK:-unix:///run/kiri/docker.sock}"
 KIRI_DOCKER="${KIRI_DOCKER:-docker}"
 
 IMAGES=(

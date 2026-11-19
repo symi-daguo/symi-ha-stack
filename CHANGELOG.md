@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] — 2026-11-19
+
+Patch release: fixes found by a real reboot, not by a test.
+
+The stack had been running for months without the boot path ever being
+exercised. Restarting the machine exposed three faults that every
+simulated test had passed over.
+
+### Fixed
+
+**The Kiri stack would not have come back after a reboot.** The systemd
+unit started an engine script from a scratch directory that does not
+exist. The container engine was fine, the containers were fine, and the
+stack would still have been down, with nothing in the logs to say why.
+
+**The Docker fallback could not have run.** `watch.sh` invoked
+`$STACK_DIR/scripts/engine.sh`, but the script is in `$STACK_DIR/bin/`.
+The monitor was running and would have tried to fall back to Docker in
+an emergency, and the fallback would have failed silently. It now looks
+in both places and says so in the log when it finds neither.
+
+**The monitor could not write its log, and could not see the engine.**
+`watch.sh` defaults to `/opt/ha-stack`, a root-owned directory the
+installing user cannot write to. The unit did not override it. So the
+monitor ran, believed the engine was dead, and counted every check as a
+failure.
+
+**`DOCKER_HOST` was set to a bare socket path.** `KIRI_SOCK` defaulted to
+the socket's path without the `unix://` prefix, and the Docker CLI reads
+a bare path as a TCP address — it tried to reach a TCP port instead of
+the socket. Every script that talked to the Kiri engine — `engine.sh`,
+`watch.sh`, `sync-images.sh` — was affected. `healthcheck.sh` already used
+the prefix, which is why the health check had always worked while the
+monitor had not.
+
+The units now also pass `Environment=STACK_DIR=`, so the scripts and the
+monitor agree on which directory is the stack.
+
+### Changed
+
+- The requirement matrix grew to 89 checks. Four of them cover the
+  faults above: the socket prefix in every script that uses it, the
+  fallback finding the engine script, every unit passing `STACK_DIR`,
+  and every unit's `ExecStart` pointing at a file that exists.
+
+### How it was found
+
+By restarting the machine. The boot evidence is collected by a script
+that runs from a systemd unit after boot, because an agent session does
+not survive a reboot and the evidence has to outlive it. That script
+wrote the first line of its own log, which was the monitor's
+`BAD(1/3) 引擎故障` — the fault had been there for months, and every
+previous check had passed because none of them looked.
+
+MIT licensed.
+
+
 ## [1.1.4] — 2026-11-19
 
 Patch release: the gates themselves are now real gates.

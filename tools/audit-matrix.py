@@ -463,6 +463,29 @@ REQUIREMENTS = [
      lambda: not sh("git grep -l -F '%s' -- . ':!tests/fixtures/' 2>/dev/null "
                     "| cat" % _fixture_iface()).strip()),
 
+    # ── 重启验证发现的洞（v1.1.5）──
+    ("BV-01", "scripts/*.sh",
+     "KIRI_SOCK 用 unix:// 前缀（裸路径会被 Docker CLI 当成 TCP 地址）",
+     lambda: all("unix:///run/kiri/docker.sock" in sh(f"cat {f}")
+                 for f in ("scripts/engine.sh", "scripts/watch.sh",
+                           "scripts/sync-images.sh", "scripts/healthcheck.sh"))),
+    ("BV-02", "scripts/watch.sh",
+     "自动回落能找到 engine.sh（试 bin/ 和 scripts/ 两个位置）",
+     lambda: (hasf('for cand in "$STACK_DIR/bin/engine.sh" "$STACK_DIR/scripts/engine.sh"', ["scripts/watch.sh"])[0]
+               and hasf("无法自动回落", ["scripts/watch.sh"])[0])),
+    ("BV-03", "systemd/*.service",
+     "所有 unit 都传 Environment=STACK_DIR（否则脚本用默认路径操作错的目录）",
+     lambda: all(hasf("Environment=STACK_DIR=", [f])[0]
+                 for f in ("systemd/ha-stack-kiri.service",
+                           "systemd/ha-stack-watch.service"))),
+    ("BV-04", "systemd/*.service",
+     "unit 的 ExecStart 指向的脚本在仓库里存在",
+     lambda: all(os.path.exists(re.sub(r'^/opt/ha-stack/', '', m))
+                 for f in ("systemd/ha-stack-kiri.service",
+                           "systemd/ha-stack-watch.service")
+                 for m in re.findall(r'ExecStart=\S+ (\S+\.sh)',
+                                     sh(f"cat {f}")))),
+
     # ── GitHub 规范 ──
     ("GH-01", "仓库根",
      "LICENSE 存在且是 MIT",

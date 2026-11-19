@@ -14,7 +14,7 @@ set -uo pipefail
 
 STACK_DIR="${STACK_DIR:-/opt/ha-stack}"
 LOG="${WATCH_LOG:-$STACK_DIR/watch.log}"
-KIRI_SOCK="${KIRI_SOCK:-/run/kiri/docker.sock}"
+KIRI_SOCK="${KIRI_SOCK:-unix:///run/kiri/docker.sock}"
 KIRI_DOCKER="${KIRI_DOCKER:-docker}"
 INTERVAL="${WATCH_INTERVAL:-300}"
 MAXBAD="${WATCH_MAX_BAD:-3}"
@@ -88,7 +88,20 @@ while true; do
     echo "$(ts) BAD($BAD/$MAXBAD)$unhealthy 引擎=${eng}MB HA=${har}MB avail=${avail}MB swap=${swap}MB" >> "$LOG"
     if [ "$BAD" -ge "$MAXBAD" ]; then
       echo "$(ts) === 连续 $MAXBAD 次不健康，自动切回 Docker ===" >> "$LOG"
-      "$STACK_DIR/scripts/engine.sh" docker >> "$LOG" 2>&1
+      # The engine script lives in the stack directory, but which
+      # subdirectory depends on how the stack was installed. Try both
+      # before giving up — the fallback has to work, because it is the
+      # thing that keeps a beta engine from taking the stack down.
+      engine=""
+      for cand in "$STACK_DIR/bin/engine.sh" "$STACK_DIR/scripts/engine.sh"; do
+        [ -x "$cand" ] && { engine="$cand"; break; }
+      done
+      if [ -z "$engine" ]; then
+        echo "$(ts) === 找不到 engine.sh（试过 \$STACK_DIR/bin 与 \$STACK_DIR/scripts），无法自动回落 ===" >> "$LOG"
+      else
+        echo "$(ts) === 使用 $engine 切回 Docker ===" >> "$LOG"
+        "$engine" docker >> "$LOG" 2>&1
+      fi
       BAD=0
       sleep "$INTERVAL"
     fi

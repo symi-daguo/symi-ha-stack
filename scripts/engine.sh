@@ -22,7 +22,7 @@
 set -uo pipefail
 
 STACK_DIR="${STACK_DIR:-/opt/ha-stack}"
-KIRI_SOCK="${KIRI_SOCK:-/run/kiri/docker.sock}"
+KIRI_SOCK="${KIRI_SOCK:-unix:///run/kiri/docker.sock}"
 KIRI_DOCKER="${KIRI_DOCKER:-docker}"
 COMPOSE="$STACK_DIR/docker-compose.yml"
 LOG="$STACK_DIR/engine.log"
