@@ -275,6 +275,32 @@ REQUIREMENTS = [
      "非 git 目录必须报错，不能报'干净'",
      lambda: hasf("is not a git repository", ["scripts/sanitize-scan.sh"])),
 
+    # ── 独立审查发现的洞（v1.1.2）──
+    ("REV-01", "scripts/sanitize-scan.sh",
+     "32位 bridge id 规则大小写都匹配（真实 bridge id 是大写）",
+     lambda: hasf("git grep -niE", ["scripts/sanitize-scan.sh"])),
+    ("REV-02", "scripts/sanitize-scan.sh",
+     "凭据规则不再整行排除含 'example' 的行",
+     lambda: ("|" not in hasf("grep -vE 'REPLACE_WITH|CHANGE_ME|dummy|example|", ["scripts/sanitize-scan.sh"])[1]
+               or "example|" not in hasf("grep -vE 'REPLACE_WITH|CHANGE_ME|dummy|example|", ["scripts/sanitize-scan.sh"])[1])),
+    ("REV-03", "scripts/healthcheck.sh",
+     "DC() 不硬编码 Kiri socket（Docker-only 主机上会误报）",
+     lambda: (not hasf('DC() { DOCKER_HOST="$KIRI_SOCK"', ["scripts/healthcheck.sh"])[0]
+               and hasf("ENDPOINT=", ["scripts/healthcheck.sh"])[0])),
+    ("REV-04", "install/install.sh",
+     "AppArmor unit 也做路径替换（装到非默认路径时不能指向 /opt）",
+     lambda: hasf("rewrite_unit \"$REPO_DIR/systemd/disable-mosquitto-apparmor.service\"",
+                   ["install/install.sh"])),
+    ("REV-05", "docs/TROUBLESHOOTING.md",
+     "中英文都说五坑，不是四坑",
+     lambda: (not hasf("四坑", ["docs/TROUBLESHOOTING.md"])[0]
+               and not hasf("四个开机崩溃", ["docs/TROUBLESHOOTING.md"])[0]
+               and not hasf("Four Boot Crashes", ["docs/TROUBLESHOOTING.md"])[0]
+               and not hasf("four boot crashes", ["README.md", "README_EN.md"])[0])),
+    ("REV-06", "scripts/selftest-fixtures.sh",
+     "fixture 覆盖大写 bridge id",
+     lambda: hasf("bridgeid.txt", ["scripts/selftest-fixtures.sh"])),
+
     # ── GitHub 规范 ──
     ("GH-01", "仓库根",
      "LICENSE 存在且是 MIT",

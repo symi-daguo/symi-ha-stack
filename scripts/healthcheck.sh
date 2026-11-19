@@ -40,18 +40,34 @@ for c in "$KIRI_DOCKER" docker /usr/local/bin/docker-kiri "$HOME/.local/bin/dock
     /*) [ -x "$c" ] || continue ;;
     *)  command -v "$c" >/dev/null 2>&1 || continue ;;
   esac
-  if DOCKER_HOST="$KIRI_SOCK" "$c" info >/dev/null 2>&1; then CLI="$c"; break; fi
+  if DOCKER_HOST="$KIRI_SOCK" "$c" info >/dev/null 2>&1; then
+    CLI="$c"; ENDPOINT="$KIRI_SOCK"; break
+  fi
+  # A plain Docker host: no endpoint override needed.
+  if env -u DOCKER_HOST "$c" info >/dev/null 2>&1; then
+    CLI="$c"; ENDPOINT=""; break
+  fi
 done
 if [ -z "$CLI" ]; then
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     CLI=docker
+    ENDPOINT=""
   else
     echo "找不到可用的容器引擎端点" >&2
     exit 1
   fi
 fi
 
-DC() { DOCKER_HOST="$KIRI_SOCK" "$CLI" "$@"; }
+# Use the endpoint that actually answered. Forcing the Kiri socket here
+# made every command talk to a socket that may not exist on a
+# Docker-only host — the README quick start never mentions Kiri, and
+# the MQTT check then reported "authentication failed" against a
+# perfectly healthy broker.
+if [ -n "$ENDPOINT" ]; then
+  DC() { DOCKER_HOST="$ENDPOINT" "$CLI" "$@"; }
+else
+  DC() { env -u DOCKER_HOST "$CLI" "$@"; }
+fi
 
 # ── 1. engine ────────────────────────────────────────────────────────────────
 head_ "引擎"

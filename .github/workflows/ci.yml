@@ -135,7 +135,7 @@ jobs:
             echo "::error::the scanner passed a repository full of planted leaks — it no longer detects them"
             fail=1
           fi
-          for expected in "leak.env" "guide.md" "net.conf" "key.pem" "ec.pem" "prose.txt" "homepath.md"; do
+          for expected in "leak.env" "guide.md" "net.conf" "key.pem" "ec.pem" "prose.txt" "homepath.md" "bridgeid.txt"; do
             if ! echo "$out" | grep -q "$expected"; then
               echo "::error::the scanner did not report the planted leak in $expected"
               fail=1

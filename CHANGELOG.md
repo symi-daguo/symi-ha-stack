@@ -70,8 +70,25 @@ stack.
 The scan was checked in both directions: it exits 1 on the planted leaks
 and exits 0 on the repository. Every rule was exercised against a real
 sample — real RSA and EC private keys from `openssl`, a real-length
-Home Assistant token — not against a fake header. All six CI jobs were
-run locally from the workflow file itself.
+Home Assistant token — not against a fake header.
+
+The requirement matrix was verified by breaking things on purpose:
+deleting `scripts/healthcheck.sh` produced three gaps, removing
+`--no-systemd` produced one, and reintroducing the `$STACK_DIR` hijack
+produced another.
+
+The self-test fixtures grew to eight planted samples, including the three
+that the independent review found holes for: a credential on a line that
+also contains "example", a credential in a home directory path, and an
+uppercase Matter bridge id.
+
+One candidate finding did not hold: the claim that the CI self-test could
+pass with the scanner's content rules disabled. Tested directly, the
+assertions name every planted sample, so disabling the rules turns the
+job red.
+
+All six CI jobs were run locally from the workflow file itself, and again
+on a fresh clone of the published branch.
 
 
 ## [1.1.1] — 2026-11-19

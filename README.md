@@ -193,7 +193,7 @@ symi-ha-stack/
 |---|---|
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | 运维手册：日常操作、备份、升级、监控 |
 | [docs/OPERATIONS_EN.md](docs/OPERATIONS_EN.md) | Same, in English |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 四个开机崩溃的完整排查过程与证据 |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 五个开机崩溃的完整排查过程与证据 |
 
 ---
 

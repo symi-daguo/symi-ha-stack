@@ -47,6 +47,10 @@ printf 'for example set MQTT_PASSWORD=AbCdEf0123456789XYZ here\n' > prose.txt
 # A credential in a home directory path.
 printf 'the config lives at /home/alice/config and holds a token\n' > homepath.md
 
+# A Matter bridge id. home-assistant-matter-hub publishes them in
+# UPPERCASE, so a lowercase-only pattern would miss the real thing.
+printf 'bridge id 3F7A9C2B1D4E5F60718293A4B5C6D7E8 here\n' > bridgeid.txt
+
 # The legitimate counterpart of a .env, which the scanner must leave alone.
 printf 'TOKEN=REPLACE_WITH_YOUR_TOKEN\n' > examples/.env.example
 

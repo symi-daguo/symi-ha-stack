@@ -107,7 +107,11 @@ fi
 
 # A bridge id is 32 hex characters. The troubleshooting guide mentions it
 # as a redacted example, so only flag it outside the documentation.
-if git grep -nE '\b[0-9a-f]{32}\b' -- . ':!*.md' ':!scripts/selftest-fixtures.sh' 2>/dev/null; then
+# A bridge id is 32 hex characters. home-assistant-matter-hub publishes
+# them in UPPERCASE, so the pattern has to accept both cases. The
+# troubleshooting guide mentions one as a redacted example, so only flag
+# it outside the documentation.
+if git grep -niE '\b[0-9a-f]{32}\b' -- . ':!*.md' ':!scripts/selftest-fixtures.sh' 2>/dev/null; then
   report "32-hex identifier (bridge id?) committed"
 fi
 

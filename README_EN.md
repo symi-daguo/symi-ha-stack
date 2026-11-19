@@ -186,7 +186,7 @@ symi-ha-stack/
 ├── docs/
 │   ├── OPERATIONS.md          # operations manual (Chinese)
 │   ├── OPERATIONS_EN.md       # operations manual (English)
-│   └── TROUBLESHOOTING.md     # the four boot crashes in detail
+│   └── TROUBLESHOOTING.md     # the five boot crashes in detail
 ├── install/install.sh         # one-shot installer
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
@@ -202,7 +202,7 @@ symi-ha-stack/
 |---|---|
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Operations: day-to-day, backup, upgrade, monitoring |
 | [docs/OPERATIONS_EN.md](docs/OPERATIONS_EN.md) | Same, in English |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Full diagnosis and evidence for the four boot crashes |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Full diagnosis and evidence for the five boot crashes |
 
 ---
 

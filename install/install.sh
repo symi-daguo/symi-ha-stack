@@ -161,20 +161,32 @@ else
   warn "启动前请执行: sudo $STACK_DIR/scripts/fix-permissions.sh"
 fi
 
+# Rewrite the paths inside a unit file so it points at THIS install.
+# Both the ExecStart path and the Environment=STACK_DIR line have to be
+# rewritten: fixing only the path leaves STACK_DIR at its built-in
+# default, so the scripts would operate on the wrong directory.
+rewrite_unit() {
+  sed -e "s|/opt/ha-stack|$STACK_DIR|g" \
+      -e "s|^Environment=STACK_DIR=.*|Environment=STACK_DIR=$STACK_DIR|" \
+      "$1" > "$2"
+}
+
 # ── AppArmor ─────────────────────────────────────────────────────────────────
 if [ "$(id -u)" = "0" ] && [ -f /etc/apparmor.d/mosquitto ]; then
   say "处理残留的 AppArmor profile"
   warn "检测到 /etc/apparmor.d/mosquitto —— 在不套默认 profile 的运行时上会让容器读不到配置"
-  if [ "$ASSUME_YES" = "1" ]; then
-    cp "$REPO_DIR/systemd/disable-mosquitto-apparmor.service" /etc/systemd/system/
+  install_apparmor_unit() {
+    rewrite_unit "$REPO_DIR/systemd/disable-mosquitto-apparmor.service" \
+                 /etc/systemd/system/disable-mosquitto-apparmor.service
     systemctl daemon-reload
     systemctl enable --now disable-mosquitto-apparmor.service
+  }
+  if [ "$ASSUME_YES" = "1" ]; then
+    install_apparmor_unit
   else
     read -r -p "  现在卸载它吗？[y/N] " a
     if [ "${a,,}" = "y" ]; then
-      cp "$REPO_DIR/systemd/disable-mosquitto-apparmor.service" /etc/systemd/system/
-      systemctl daemon-reload
-      systemctl enable --now disable-mosquitto-apparmor.service
+      install_apparmor_unit
     fi
   fi
 fi
@@ -192,9 +204,7 @@ if [ "$INSTALL_SYSTEMD" = "1" ] && [ -d "$UNITDIR" ] && command -v systemctl >/d
   # (/opt/ha-stack), so the scripts would operate on the wrong directory
   # when the stack is installed somewhere else.
   for unit in ha-stack-watch ha-stack-kiri; do
-    sed -e "s|/opt/ha-stack|$STACK_DIR|g" \
-        -e "s|^Environment=STACK_DIR=.*|Environment=STACK_DIR=$STACK_DIR|" \
-        "$REPO_DIR/systemd/$unit.service" > "$UNITDIR/$unit.service"
+    rewrite_unit "$REPO_DIR/systemd/$unit.service" "$UNITDIR/$unit.service"
   done
   echo "  已写入 $UNITDIR/ha-stack-watch.service, ha-stack-kiri.service"
   echo "  （STACK_DIR=$STACK_DIR）"

@@ -1,8 +1,8 @@
-# 开机崩溃四坑详解 / The Four Boot Crashes
+# 开机崩溃五坑详解 / The Five Boot Crashes
 
 > 中文为主，关键排查命令附英文说明。English summary at the bottom.
 
-本文记录把 Home Assistant + Matter 栈迁到 Kiri 引擎时，真实踩到的四个开机崩溃。
+本文记录把 Home Assistant + Matter 栈迁到 Kiri 引擎时，真实踩到的五个开机崩溃。
 每一个都附**根因证据**和**可复现的验证方法**，不是猜测。
 
 **背景**：2026-11-18 早上 10:21 机器重启后，Kiri 引擎起不来，mosquitto 容器
