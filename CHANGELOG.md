@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-11-19
+
+Patch release: documentation corrections and a hardened sanitisation scan.
+No new features, no behaviour changes.
+
+### Fixed
+
+- **The CI link check could not fail.** It piped a `while read` loop, which
+  runs in a subshell: the `exit 1` inside it never failed the step and the
+  `fail=1` assignment was lost. Broken links in the documentation passed CI
+  silently. The loop now runs in a process substitution, so a broken link
+  actually fails the job.
+- **The README files still said the current version was 1.0.0.** They now
+  say 1.1.1, and CI checks that the README files mention the released tag.
+
+### Changed
+
+- **The sanitisation scan now covers the documentation.** The old scan
+  excluded `docs/`, `README*` and `*.example` — but documentation is exactly
+  where a pasted token survives: a "worked example" in a troubleshooting
+  guide, a real LAN address in a command line, a pairing code in a caption.
+  The scan now covers every tracked file, with placeholders excluded
+  explicitly rather than whole directories.
+- **The scan checks more than credentials.** It now also looks for host
+  home paths, private LAN addresses, MAC addresses, 32-hex bridge ids,
+  private key blocks, and tracked files whose names suggest they hold
+  secrets (`*.env`, `credentials*`, `id_rsa`, …). Binary files are rejected
+  outright — a stray archive or image layer could hide anything the text
+  scan cannot see.
+- **CI validates the reference engine unit** and checks that every script
+  and example file referenced in the documentation actually exists.
+
+The scan was verified against deliberately planted leaks: it catches a token
+in `.env`, a token in a markdown guide, a LAN address, and a MAC address,
+while still allowing the placeholders in `examples/.env.example`.
+
+
 ## [1.1.0] — 2026-11-19
 
 New operational tooling, plus a fix for a bug that only shows up when the

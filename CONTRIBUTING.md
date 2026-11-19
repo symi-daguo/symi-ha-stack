@@ -55,6 +55,42 @@ feat(scripts): add backup.sh helper
 docs: clarify the mDNS leak symptom
 ```
 
+## 脱敏（提交前必做）
+
+对外提交的仓库**绝不能**包含以下内容：
+
+| 类型 | 检查方式 |
+|---|---|
+| HA token / MQTT 密码 | 搜 `TOKEN=` `PASSWORD=` 后面跟长串 |
+| 本机绝对路径 | 搜 `/home/<用户名>` `/Users/<用户名>` |
+| 内网 IP | 搜 `192.168.` `10.x.x.x` `172.16-31.x.x` |
+| MAC 地址 | 搜 `XX:XX:XX:XX:XX:XX` |
+| Matter Bridge ID / 配对码 | 搜 32 位十六进制、11 位数字 |
+| 二进制文件 | `file --mime-encoding` 应只输出 us-ascii/utf-8/empty |
+
+CI 会自动跑这些检查，但**先自己扫一遍**——CI 红了会挡住合并。
+
+示例文件（`examples/.env.example`）必须用占位符（`REPLACE_WITH_...`），
+不能填真值。
+
+## Sanitisation (before you push)
+
+A public repository must **never** contain:
+
+| Kind | How to look for it |
+|---|---|
+| HA token / MQTT password | a long opaque string after `TOKEN=` / `PASSWORD=` |
+| Host absolute paths | `/home/<user>` or `/Users/<user>` |
+| Private LAN addresses | `192.168.`, `10.x.x.x`, `172.16-31.x.x` |
+| MAC addresses | `XX:XX:XX:XX:XX:XX` |
+| Matter bridge id / pairing code | 32 hex characters, 11 digits |
+| Binary files | `file --mime-encoding` should print only us-ascii/utf-8/empty |
+
+CI runs these checks, but **scan yourself first** — a red CI blocks the merge.
+
+Example files (`examples/.env.example`) must use placeholders
+(`REPLACE_WITH_...`), never real values.
+
 ## Pull requests
 
 - One logical change per PR.

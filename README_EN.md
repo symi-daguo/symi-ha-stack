@@ -223,10 +223,10 @@ exactly what `watch.sh` in this project is for.
 
 ## Versioning
 
-Current: **1.0.0**
+Current: **1.1.1**
 
-Semantic versioning from here: patch releases (1.0.x) for fixes, minor releases
-(1.1.0) for features.
+Semantic versioning from here: patch releases (1.1.x) for fixes and docs,
+minor releases (1.2.0) for features.
 
 ## License
 
