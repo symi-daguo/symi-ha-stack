@@ -195,14 +195,31 @@ fi
 
 # ── 8. recent errors ─────────────────────────────────────────────────────────
 head_ "日志"
-ERRS=$(run_ha true 2>/dev/null && \
-  { DC ps --format '{{.Names}}' 2>/dev/null | grep -qx homeassistant \
-      && DC logs homeassistant --since 30m 2>/dev/null || docker logs homeassistant --since 30m 2>/dev/null; } \
-  | grep -c ' ERROR ' || true)
-if [ "${ERRS:-0}" -eq 0 ]; then
-  ok "最近 30 分钟无 ERROR"
+# Collect the log text first, then count. Piping the count straight out
+# of the command chain made an empty result indistinguishable from "no
+# errors": if the log could not be read at all, the chain produced
+# nothing, the count was empty, and the report said "no ERROR" — a
+# broken Home Assistant was reported as a clean log.
+# --tail, not --since: Kiri silently ignores --since and returns nothing,
+# which made this check report "no ERROR" on an empty log every single
+# time — it never actually read the log at all. --tail works on both
+# engines.
+LOGOUT=""
+if DC ps --format '{{.Names}}' 2>/dev/null | grep -qx homeassistant; then
+  LOGOUT=$(DC logs homeassistant --tail 2000 2>/dev/null)
+fi
+if [ -z "$LOGOUT" ]; then
+  LOGOUT=$(docker logs homeassistant --tail 2000 2>/dev/null)
+fi
+if [ -z "$LOGOUT" ]; then
+  bad "读不到 homeassistant 日志（无法判断是否有 ERROR）"
 else
-  bad "最近 30 分钟有 $ERRS 条 ERROR"
+  ERRS=$(printf '%s' "$LOGOUT" | grep -c ' ERROR ' || true)
+  if [ "${ERRS:-0}" -eq 0 ]; then
+    ok "最近 2000 行日志无 ERROR"
+  else
+    bad "最近 2000 行日志有 $ERRS 条 ERROR"
+  fi
 fi
 
 # ── 9. directory ownership ───────────────────────────────────────────────────

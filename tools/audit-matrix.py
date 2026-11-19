@@ -301,6 +301,15 @@ REQUIREMENTS = [
      "fixture 覆盖大写 bridge id",
      lambda: hasf("bridgeid.txt", ["scripts/selftest-fixtures.sh"])),
 
+    # ── 健康检查（v1.1.2 补充）──
+    ("HC-01", "scripts/healthcheck.sh",
+     "日志检查用 --tail 而不是 --since（Kiri 静默忽略 --since，返回空）",
+     lambda: (hasf("--tail 2000", ["scripts/healthcheck.sh"])[0]
+               and not hasf("logs homeassistant --since", ["scripts/healthcheck.sh"])[0])),
+    ("HC-02", "scripts/healthcheck.sh",
+     "区分'读不到日志'和'无错误'（空日志不能报成正常）",
+     lambda: hasf("读不到 homeassistant 日志", ["scripts/healthcheck.sh"])),
+
     # ── GitHub 规范 ──
     ("GH-01", "仓库根",
      "LICENSE 存在且是 MIT",
