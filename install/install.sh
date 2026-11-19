@@ -46,7 +46,12 @@ KIRI_DOCKER="${KIRI_DOCKER:-}"
 
 CLIS=("$DOCKER_BIN")
 [ -n "$KIRI_DOCKER" ] && CLIS+=("$KIRI_DOCKER")
-for c in /usr/local/bin/docker-kiri "$HOME/.local/bin/docker-kiri"; do
+# The real home directory, not $HOME: under `sudo` $HOME is /root, so a
+# client installed in the invoking user's ~/.local/bin would be missed.
+REAL_HOME="${REAL_HOME:-$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)}"
+[ -n "$REAL_HOME" ] || REAL_HOME="$HOME"
+for c in /usr/local/bin/docker-kiri "$REAL_HOME/.local/bin/docker-kiri" \
+         "$HOME/.local/bin/docker-kiri"; do
   [ -x "$c" ] && CLIS+=("$c")
 done
 
