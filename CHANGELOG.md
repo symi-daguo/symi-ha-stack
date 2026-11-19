@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] — 2026-11-19
+
+Patch release: the log check now actually reads the log.
+
+### Fixed
+
+**`healthcheck.sh` never read a single log line.** It asked for the
+recent errors with `docker logs homeassistant --since 30m`. Kiri
+silently ignores `--since` and returns nothing, with exit code 0. The
+pipeline then counted the errors in an empty log, got 0, and reported
+"no ERROR in the last 30 minutes" — every single time, on a healthy
+stack and on a broken one alike. The check now uses `--tail`, which both
+engines support.
+
+**A log that cannot be read was reported as a clean log.** Piping the
+count straight out of the command chain made an empty result
+indistinguishable from "no errors". The two cases are now separate: if
+the log cannot be read, the report says so.
+
+The requirement matrix grew two checks for this, verified by
+reintroducing the `--since` usage.
+
+Found by the first independent reviewer, which was stopped mid-run but
+had already noted that shellcheck at `severity=info` reports notes the CI
+does not check for. The other two notes it surfaced are intentional: the
+SC2016 single quotes keep `$MQTT_USER` and `$MQTT_PASS` from expanding on
+the host, and the SC2015 fallbacks are deliberate.
+
+
 ## [1.1.2] — 2026-11-19
 
 Patch release: the sanitisation scan becomes a tested artefact, and the
