@@ -389,8 +389,12 @@ docker-kiri ps --filter health=healthy --format '{{.Names}}'   # 4 个
 
 ## English summary
 
-Four boot crashes hit when moving an HA + Matter stack onto the Kiri engine.
+Five boot crashes hit when moving an HA + Matter stack onto the Kiri engine.
 Each one below has root-cause evidence, not guesswork.
+
+The fifth pitfall is the one to read twice: it only appears when two
+individually correct fixes interact, so testing either fix on its own
+never reveals it.
 
 1. **`ExecStartPost=` without the `-` prefix.** In systemd, a failing
    `ExecStartPost=` (no dash) fails the *entire unit* — so an occasional
@@ -421,7 +425,8 @@ Each one below has root-cause evidence, not guesswork.
    *cause* of #1–#3. Fix: `systemctl disable snap.docker.dockerd.service` and
    start it on demand in `engine.sh docker`.
 
-5. **A script that waits longer than the systemd start timeout.** The
+5. **The fifth pitfall: a script that waits longer than the systemd start
+   timeout.** The
    `ExecStartPost` that installs the FORWARD rules waited up to 90s for the
    `DOCKER-USER` chain, and `ExecStartPre` waited up to 90s for the default
    route — 180s in total, against systemd's 90s `TimeoutStartSec` default.

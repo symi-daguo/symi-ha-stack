@@ -91,6 +91,75 @@ CI runs these checks, but **scan yourself first** — a red CI blocks the merge.
 Example files (`examples/.env.example`) must use placeholders
 (`REPLACE_WITH_...`), never real values.
 
+## 仓库里的脚本
+
+| 脚本 | 作用 |
+|---|---|
+| `scripts/engine.sh` | 在 Docker 与 Kiri 之间切换引擎 |
+| `scripts/watch.sh` | 健康监控，连续失败自动切回 Docker |
+| `scripts/healthcheck.sh` | 一键体检，退出码可用于监控 |
+| `scripts/backup.sh` | 备份配置与数据 |
+| `scripts/setup-mqtt.sh` | 生成 MQTT 凭据 |
+| `scripts/sync-images.sh` | 在两个引擎之间同步镜像 |
+| `scripts/fix-permissions.sh` | 修正 bind mount 的属主 |
+| `scripts/kiri-forward.sh` | 维护 Kiri 的出网规则 |
+| `scripts/disable-mosquitto-apparmor.sh` | 卸载残留的 AppArmor profile |
+| `scripts/sanitize-scan.sh` | 脱敏扫描（CI 与本地都用它） |
+| `scripts/selftest-fixtures.sh` | 自检用的泄漏样本（**不是**配置） |
+
+### 脱敏扫描
+
+本地跑一遍，和 CI 用的是同一份代码：
+
+```bash
+./scripts/sanitize-scan.sh
+```
+
+退出码 0 = 干净，1 = 有东西不能发布。
+
+改扫描规则后**必须**跑一次反向验证——扫描器不再匹配，比没有扫描器更危险，
+因为它会报"干净"：
+
+```bash
+./scripts/selftest-fixtures.sh /tmp/leaks
+./scripts/sanitize-scan.sh --path /tmp/leaks   # 必须退出 1
+```
+
+## Scripts in this repository
+
+| Script | What it does |
+|---|---|
+| `scripts/engine.sh` | Switch between the Docker and Kiri engines |
+| `scripts/watch.sh` | Health monitor; falls back to Docker after repeated failures |
+| `scripts/healthcheck.sh` | One-command health report, exit code usable by monitoring |
+| `scripts/backup.sh` | Back up configuration and data |
+| `scripts/setup-mqtt.sh` | Generate the MQTT credentials |
+| `scripts/sync-images.sh` | Copy images between the two engines |
+| `scripts/fix-permissions.sh` | Fix the ownership of the bind-mounted directories |
+| `scripts/kiri-forward.sh` | Maintain Kiri's egress rules |
+| `scripts/disable-mosquitto-apparmor.sh` | Unload the leftover AppArmor profile |
+| `scripts/sanitize-scan.sh` | The sanitisation scan (CI and local runs use this same file) |
+| `scripts/selftest-fixtures.sh` | The planted leaks used by the self-test (**not** configuration) |
+
+### The sanitisation scan
+
+Run it locally — it is the same code CI runs:
+
+```bash
+./scripts/sanitize-scan.sh
+```
+
+Exit code 0 = clean, 1 = something must not be published.
+
+After changing a rule, **verify it in reverse**. A scanner that quietly
+stopped matching is worse than no scanner at all, because it reports
+"clean" while leaks pass:
+
+```bash
+./scripts/selftest-fixtures.sh /tmp/leaks
+./scripts/sanitize-scan.sh --path /tmp/leaks   # must exit 1
+```
+
 ## Pull requests
 
 - One logical change per PR.

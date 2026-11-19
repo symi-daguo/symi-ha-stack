@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-11-19
+
+Patch release: the sanitisation scan becomes a tested artefact, and the
+documentation gets a requirement matrix. No behaviour change for a running
+stack.
+
+### Added
+
+- **`scripts/sanitize-scan.sh`** — the sanitisation rules now live in one
+  file instead of being inline in the workflow. The CI job and the
+  self-test run the same code, so a change to the rules cannot silently
+  make the self-test pass against the old behaviour.
+- **`scripts/selftest-fixtures.sh`** — plants real leaks (a credential in
+  a `.env`, a credential pasted into prose, a LAN address, a MAC address,
+  and private keys generated with `openssl`) into a throwaway repository.
+- **A `scanner-selftest` CI job.** A scan that quietly stopped matching is
+  worse than no scan at all, because it reports "clean" while leaks pass.
+  The job now requires the scanner to reject the planted leaks, requires
+  every one of them to be named in the output, and requires the
+  placeholder in `examples/.env.example` to stay unreported.
+- **`tools/audit-matrix.py`** — 60 checks that the promises the
+  documentation makes are still true: every script the docs tell the
+  reader to run exists, the systemd units still pass the environment they
+  need, the compose template still pins what it claims to pin. A new
+  `audit` CI job runs it. Verified by breaking things on purpose: deleting
+  `scripts/healthcheck.sh` produced three gaps, removing `--no-systemd`
+  produced one.
+
+### Fixed
+
+- **The scanner missed a credential pasted into prose.** The rules only
+  matched `TOKEN=<value>` style assignments. A token written into a
+  sentence — "set your token to eyJhbG..." — has no `TOKEN=` in front of
+  it and passed the scan. A real Home Assistant token is a long
+  high-entropy run (JWT-like, 183 characters), so any base64-ish run that
+  long is now reported.
+- **The scanner missed the plain variable names.** The list covered
+  `HA_TOKEN` and `MQTT_PASSWORD` but not a bare `TOKEN`, `PASSWORD`,
+  `PASSWD`, `SECRET` or `CREDENTIAL`.
+- **The English summary of the troubleshooting guide said "four boot
+  crashes"** while the Chinese guide documented five. It now says five and
+  marks the fifth explicitly — that one is worth reading twice, because it
+  only appears when two individually correct fixes interact.
+
+### Changed
+
+- **The self-test samples moved out of the workflow file.** They have to
+  look like real leaks for the self-test to mean anything, which means the
+  workflow file itself would trip the scan — and exempting the workflow
+  would have opened a hole: a real token pasted into a workflow would then
+  go unnoticed. The samples now live in `scripts/selftest-fixtures.sh`,
+  which is excluded by name, and the workflow is scanned like everything
+  else.
+- **`CONTRIBUTING.md` documents every script** in the repository, in both
+  languages, plus how to run the scan and how to verify it in reverse.
+
+### Verification
+
+The scan was checked in both directions: it exits 1 on the planted leaks
+and exits 0 on the repository. Every rule was exercised against a real
+sample — real RSA and EC private keys from `openssl`, a real-length
+Home Assistant token — not against a fake header. All six CI jobs were
+run locally from the workflow file itself.
+
+
 ## [1.1.1] — 2026-11-19
 
 Patch release: documentation corrections and a hardened sanitisation scan.
