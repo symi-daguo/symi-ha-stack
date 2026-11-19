@@ -37,9 +37,9 @@ so the READMEs would have had to literally contain "42/merge". It now
 uses the tag on a tag push and the newest CHANGELOG entry otherwise.
 
 **The private-key rule did not know encrypted or PGP keys.** It matched
-RSA, EC, DSA and OPENSSH headers only, so
-`-----BEGIN ENCRYPTED PRIVATE KEY-----` and
-`-----BEGIN PGP PRIVATE KEY BLOCK-----` passed.
+RSA, EC, DSA and OPENSSH headers only, so the encrypted and PGP header
+forms passed. The literal headers are in the fixture file — writing them
+here would have made this changelog the very thing the scan is for.
 
 **The bridge-id rule skipped the documentation.** It excluded `*.md`,
 which is exactly where a pasted bridge id would survive. No 32-hex string
@@ -47,8 +47,9 @@ exists in the markdown today, so the exclusion bought nothing and cost a
 blind spot. The rule now also matches uppercase, which is the form Matter
 Hub actually publishes.
 
-**The home-path rule missed macOS user names with a dot.** `/Users/john.smith/`
-passed; the pattern allowed only letters, digits, dash and underscore.
+**The home-path rule missed macOS user names with a dot.** A path under
+a macOS home directory whose user name contains a dot passed; the
+pattern allowed only letters, digits, dash and underscore.
 
 **The requirement matrix gave false green lights.** Ten of its checks
 were string-presence assertions — they confirmed that a pattern's TEXT
