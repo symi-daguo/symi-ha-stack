@@ -149,6 +149,31 @@ sudo systemctl enable --now disable-mosquitto-apparmor.service
 STACK_DIR=/opt/ha-stack ./scripts/engine.sh kiri
 ```
 
+### 6. 开机自启：两个 unit 只能选一个
+
+仓库提供两个 systemd unit，它们启动的是**同一批容器、同一批 host 端口**：
+
+| unit | 引擎 |
+|---|---|
+| `systemd/ha-stack.service` | Docker |
+| `systemd/ha-stack-kiri.service` | Kiri |
+
+两个都 enable 会互相抢：谁先起来谁占住端口，另一个 crash-loop。
+两个 unit 现在都带 `Conflicts=`，systemd 只会让其中一个运行。
+
+```bash
+# 跑 Kiri（省内存，推荐）
+systemctl --user enable ha-stack-kiri.service
+systemctl --user disable ha-stack.service
+
+# 或者跑 Docker
+systemctl --user enable ha-stack.service
+systemctl --user disable ha-stack-kiri.service
+
+# 监控（两个引擎都能用）
+systemctl --user enable ha-stack-watch.service
+```
+
 ---
 
 ## 项目结构
@@ -216,7 +241,7 @@ Kiri 目前仍是 beta（0.2.x）。**请务必同时部署自动回落** ——
 
 ## 版本
 
-当前：**1.1.5**
+当前：**1.1.6**
 
 后续按语义化版本迭代：小版本（1.1.x）修 bug 与文档，中版本（1.2.0）加功能。
 

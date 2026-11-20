@@ -9,6 +9,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6] — 2026-11-20
+
+Patch release: what a real reboot found.
+
+The machine was rebooted for the first time since the stack moved to
+Kiri. The boot evidence was collected by a systemd unit that runs after
+boot, because an agent session does not survive a reboot and the
+evidence has to outlive it.
+
+### Fixed
+
+**The Docker unit was still enabled and raced the Kiri unit at boot.**
+Both units start the same four containers on the same host ports. On
+this boot the Docker one lost the race — it tried to start the Docker
+daemon during the shutdown transaction and failed with
+`Transaction for polkit.service/start is destructive` — so nothing
+broke. It was luck: had the daemon started, two sets of containers
+would have fought for the ports. The two units now declare
+`Conflicts=`, so systemd keeps only one of them running, and the
+documentation says to pick one.
+
+**The desktop icon did not come back by itself.** The `hermes-desktop`
+unit was disabled, so the application was only ever running because
+somebody had started it by hand. It is enabled now, and the unit waits
+for a graphical session before launching, because Electron without a
+display exits immediately and the unit would then look started while
+no window existed.
+
+**The desktop unit used a deprecated setting.** `KillMode=none` makes
+systemd warn about it on every start. `KillMode=mixed` behaves the same
+for this unit — the detached Electron process survives either way — and
+the warning is gone.
+
+### Changed
+
+- The requirement matrix grew to 92 checks. Three of them cover the
+  faults above: the two units declaring each other a conflict, and no
+  unit using the deprecated `KillMode=none`.
+- Both READMEs gained a section on choosing between the two units.
+
+### Verification
+
+The boot evidence was collected by the unit that runs after boot, and
+everything it found was fixed and re-checked:
+
+- the four containers reached healthy within five minutes of the boot
+- the monitor logged the engine coming up and went back to reporting
+  healthy, so the watchdog survives a reboot
+- the health check passed with the MQTT publish, the mDNS interface and
+  the 85 entities all intact
+- the Kiri socket, the engine memory and the Docker daemon being off
+  were all as expected
+
+### Still unverified
+
+- Apple Home pairing is still pending on the user's side: the Matter
+  Hub is up and the bridge is registered, but no fabric exists yet.
+
+MIT licensed.
+
+
 ## [1.1.5] — 2026-11-19
 
 Patch release: fixes found by a real reboot, not by a test.

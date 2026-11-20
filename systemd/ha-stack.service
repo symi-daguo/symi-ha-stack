@@ -3,6 +3,11 @@ Description=Home Assistant + Mosquitto + Node-RED + Matter Hub (Docker)
 Documentation=https://github.com/symi-daguo/symi-ha-stack
 After=network-online.target docker.service
 Wants=network-online.target
+# The Docker unit and the Kiri unit must not both run: they start the
+# same four containers on the same host ports, and whichever starts
+# first wins while the other crash-loops. Enabling one disables the
+# other, so a machine cannot end up with both.
+Conflicts=ha-stack-kiri.service
 
 [Service]
 Type=oneshot

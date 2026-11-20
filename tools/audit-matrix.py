@@ -486,6 +486,21 @@ REQUIREMENTS = [
                  for m in re.findall(r'ExecStart=\S+ (\S+\.sh)',
                                      sh(f"cat {f}")))),
 
+    # ── 重启验证发现的洞（v1.1.6）──
+    ("BV-05", "systemd/ha-stack.service",
+     "Docker 版 unit 与 Kiri 版互斥（两者都自启会抢同一批 host 端口）",
+     lambda: hasf("Conflicts=ha-stack-kiri.service", ["systemd/ha-stack.service"])),
+    ("BV-06", "systemd/ha-stack-kiri.service",
+     "Kiri 版 unit 与 Docker 版互斥",
+     lambda: hasf("Conflicts=ha-stack.service", ["systemd/ha-stack-kiri.service"])),
+    ("BV-07", "systemd/*.service",
+     "没有用已废弃的 KillMode=none",
+     lambda: not any("KillMode=none" in ln
+                     for f in ("systemd/ha-stack.service",
+                               "systemd/ha-stack-kiri.service",
+                               "systemd/ha-stack-watch.service")
+                     for ln in sh(f"cat {f}").splitlines())),
+
     # ── GitHub 规范 ──
     ("GH-01", "仓库根",
      "LICENSE 存在且是 MIT",

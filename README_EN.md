@@ -144,6 +144,33 @@ the entity domains (recommend `domain: switch`) → note the manual pairing code
 
 Apple Home → Add Accessory → More Options → Manual Code → enter the code.
 
+### 6. Autostart: pick one of the two units
+
+The repository ships two systemd units. They start **the same four
+containers on the same host ports**:
+
+| unit | engine |
+|---|---|
+| `systemd/ha-stack.service` | Docker |
+| `systemd/ha-stack-kiri.service` | Kiri |
+
+Enabling both makes them fight: whoever starts first takes the ports and
+the other crash-loops. Both units now carry `Conflicts=`, so systemd
+keeps only one of them running.
+
+```bash
+# Kiri (saves memory, recommended)
+systemctl --user enable ha-stack-kiri.service
+systemctl --user disable ha-stack.service
+
+# or Docker
+systemctl --user enable ha-stack.service
+systemctl --user disable ha-stack-kiri.service
+
+# the monitor works with either engine
+systemctl --user enable ha-stack-watch.service
+```
+
 ### 5. (Optional) switch to Kiri to save memory
 
 ```bash
@@ -226,7 +253,7 @@ exactly what `watch.sh` in this project is for.
 
 ## Versioning
 
-Current: **1.1.5**
+Current: **1.1.6**
 
 Semantic versioning from here: patch releases (1.1.x) for fixes and docs,
 minor releases (1.2.0) for features.
